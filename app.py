@@ -69,14 +69,26 @@ app.jinja_env.filters['format_time'] = format_minutes
 # --- CLI COMMAND FOR RENDER DEPLOYMENT ---
 @app.cli.command("init-db")
 def init_db():
-    """Initializes the database tables for Render's startup command."""
+    """Initializes the database tables and seeds base pipeline users."""
     db.create_all()
+    
     # Ensure a global pool entry exists upon initialization
     if not GlobalPool.query.first():
         pool = GlobalPool(balance_minutes=1800)
         db.session.add(pool)
-        db.session.commit()
-    print("Database initialized successfully.")
+    
+    # Auto-seed Gretta if her node doesn't exist yet
+    if not User.query.filter_by(username='gretta').first():
+        gretta_user = User(username='gretta', password='iLOVEpeter10!', name='Gretta', role='user')
+        db.session.add(gretta_user)
+        
+    # Auto-seed Peter if his node doesn't exist yet
+    if not User.query.filter_by(username='peter').first():
+        peter_user = User(username='peter', password='2887', name='Peter', role='user')
+        db.session.add(peter_user)
+        
+    db.session.commit()
+    print("Database initialized and pipeline profiles seeded successfully.")
 
 # --- NAVIGATION ROUTING ---
 
