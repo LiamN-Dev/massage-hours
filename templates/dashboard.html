@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Massage Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+    <nav class="bg-white border-b border-slate-200 py-4 px-6 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-slate-900">Welcome, {{ user.name }}</h1>
+        <a href="/logout" class="text-sm font-medium text-rose-600 hover:underline">Log Out</a>
+    </nav>
+
+    <main class="max-w-6xl mx-auto p-4 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        <div class="space-y-6">
+            <div class="bg-gradient-to-br from-indigo-600 to-violet-700 p-6 rounded-2xl text-white shadow-md">
+                <p class="text-indigo-200 text-xs font-semibold tracking-wider uppercase">Remaining Balance</p>
+                <h2 class="text-4xl font-extrabold mt-1">{{ user.balance_minutes|format_time }}</h2>
+                <p class="text-xs text-indigo-100 mt-4 opacity-80">Valid for custom requested slots or open blocks</p>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200">
+                <h3 class="text-lg font-bold mb-3 flex items-center gap-2">🔔 Inbox Notifications</h3>
+                <div class="space-y-3 max-h-60 overflow-y-auto pr-1">
+                    {% for notif in notifications %}
+                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 text-sm">
+                            <p class="text-slate-700">{{ notif.message }}</p>
+                            <span class="text-[10px] text-slate-400 mt-1 block">{{ notif.timestamp.strftime('%b %d, %H:%M') }}</span>
+                        </div>
+                    {% else %}
+                        <p class="text-sm text-slate-400 italic">No messages from Admin yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="md:col-span-2 space-y-6">
+            {% with messages = get_flashed_messages() %}
+              {% if messages %}
+                <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl text-sm">
+                    {{ messages[0] }}
+                </div>
+              {% endif %}
+            {% endwith %}
+
+            <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200">
+                <h3 class="text-lg font-bold mb-4">📅 Claim an Open Time Slot</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {% for slot in available_slots %}
+                        <div class="p-4 border border-slate-200 rounded-xl bg-slate-50/50 flex flex-col justify-between">
+                            <div>
+                                <span class="inline-block text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-md mb-2
+                                    {% if slot.slot_type == 'specific' %}bg-amber-100 text-amber-800{% else %}bg-sky-100 text-sky-800{% endif %}">
+                                    {{ 'Fixed Duration Block' if slot.slot_type == 'specific' else 'Open Window Frame' }}
+                                </span>
+                                <h4 class="font-bold text-slate-900 text-base">{{ slot.date }}</h4>
+                                <p class="text-sm text-slate-600 mt-0.5">Starts at: <strong class="text-slate-800">{{ slot.start_time }}</strong></p>
+                                
+                                {% if slot.slot_type == 'specific' %}
+                                    <p class="text-sm text-slate-600">Length: <strong class="text-slate-800">{{ slot.duration_minutes|format_time }}</strong></p>
+                                {% else %}
+                                    <p class="text-sm text-slate-600">Window ends: <strong class="text-slate-800">{{ slot.end_time }}</strong></p>
+                                {% endif %}
+                            </div>
+
+                            <form action="/book-slot/{{ slot.id }}" method="POST" class="mt-4 pt-3 border-t border-slate-100">
+                                {% if slot.slot_type == 'window' %}
+                                    <div class="flex gap-2 items-center mb-3">
+                                        <span class="text-xs text-slate-500 whitespace-nowrap">I want:</span>
+                                        <input type="number" name="hours" min="0" max="5" placeholder="H" required class="w-12 p-1 text-center border border-slate-200 text-sm rounded">
+                                        <input type="number" name="minutes" min="0" max="59" step="5" placeholder="M" required class="w-12 p-1 text-center border border-slate-200 text-sm rounded">
+                                    </div>
+                                {% endif %}
+                                <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
+                                    Request This Appointment
+                                </button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <p class="text-sm text-slate-400 italic sm:col-span-2">No open times listed at the moment.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200">
+                <h3 class="text-lg font-bold mb-3">👥 Shared Massage Schedule (Who Is Going When)</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-slate-400 font-semibold">
+                                <th class="pb-2">Date</th>
+                                <th class="pb-2">Time</th>
+                                <th class="pb-2">Duration</th>
+                                <th class="pb-2">Recipient</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for slot, recipient in all_approved %}
+                                <tr class="text-slate-700">
+                                    <td class="py-3 font-medium text-slate-900">{{ slot.date }}</td>
+                                    <td class="py-3">{{ slot.start_time }}</td>
+                                    <td class="py-3">{{ slot.requested_duration|format_time }}</td>
+                                    <td class="py-3">
+                                        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+                                            {{ recipient.name }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="py-4 text-slate-400 italic text-center">No upcoming confirmed appointments.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200">
+                <h3 class="text-lg font-bold mb-3">📋 Your History & Requests</h3>
+                <div class="space-y-3">
+                    {% for appointment in my_appointments %}
+                        <div class="p-3 border border-slate-100 rounded-lg flex justify-between items-center text-sm">
+                            <div>
+                                <p class="font-semibold text-slate-900">{{ appointment.date }} @ {{ appointment.start_time }}</p>
+                                <p class="text-xs text-slate-500">Duration requested: {{ appointment.requested_duration|format_time }}</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="px-2.5 py-1 rounded-md text-xs font-bold tracking-wide uppercase
+                                    {% if appointment.status == 'pending' %}bg-amber-100 text-amber-800
+                                    {% elif appointment.status == 'approved' %}bg-emerald-100 text-emerald-800
+                                    {% elif appointment.status == 'refund_requested' %}bg-purple-100 text-purple-800{% endif %}">
+                                    {{ appointment.status.replace('_', ' ') }}
+                                </span>
+                                
+                                {% if appointment.status == 'approved' %}
+                                    <form action="/request-refund/{{ appointment.id }}" method="POST">
+                                        <button type="submit" class="text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 px-2 py-1 rounded font-medium transition-colors">
+                                            Cancel
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-sm text-slate-400 italic">You haven't initiated any requests yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200">
+                <h3 class="text-lg font-bold mb-3">🧾 Transaction Receipts</h3>
+                <div class="divide-y divide-slate-100 max-h-60 overflow-y-auto">
+                    {% for receipt in receipts %}
+                        <div class="py-3 flex justify-between items-center text-sm">
+                            <div>
+                                <p class="text-slate-800 font-medium">{{ receipt.description }}</p>
+                                <p class="text-[10px] text-slate-400">{{ receipt.timestamp.strftime('%Y-%m-%d %H:%M') }}</p>
+                            </div>
+                            <span class="font-mono font-bold {% if receipt.minutes_changed < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                                {% if receipt.minutes_changed > 0 %}+{% endif %}{{ receipt.minutes_changed|format_time }}
+                            </span>
+                        </div>
+                    {% else %}
+                        <p class="text-sm text-slate-400 italic pt-2">No data entries recorded yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+    </main>
+</body>
+</html>
