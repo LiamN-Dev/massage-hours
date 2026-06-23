@@ -66,14 +66,13 @@ def format_duration(total_minutes):
     return f"{sign}{hours}h {minutes}m"
 
 def format_ampm(time_str):
-    """Converts a 'HH:MM' 24hr string into an 'H:MM AM/PM' string."""
     if not time_str:
         return ""
     try:
         t = datetime.strptime(time_str.strip(), "%H:%M")
         return t.strftime("%I:%M %p").lstrip("0")
     except ValueError:
-        return time_str # Fallback to original string if formatted weirdly
+        return time_str
 
 app.jinja_env.filters['format_time'] = format_duration
 app.jinja_env.filters['ampm'] = format_ampm
@@ -199,14 +198,45 @@ def admin_dashboard():
     users = User.query.filter_by(role='user').all()
     pending_slots = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'pending').all()
     refund_requests = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'refund_requested').all()
-    all_slots = TimeSlot.query.all()
     
-    return render_template('admin.html', pool=pool, users=users, pending_slots=pending_slots, refund_requests=refund_requests, all_slots=all_slots)
+    # FIX: Perform an outer join with User so we fetch the user info alongside the slot for the index view
+    all_slots_with_users = db.session.query(TimeSlot, User).keys_with_rows().outerjoin(User, TimeSlot.claimed_by == User.id).all()
+    
+    return render_template('admin.html', pool=pool, users=users, pending_slots=pending_slots, refund_requests=refund_requests, all_slots=all_slots_with_users)
+
+@app.route('/admin/create-user', methods=['POST'])
+def create_user():
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    username = request.form.get('username').strip().lower()
+    password = request.form.get('password').strip()
+    name = request.form.get('name').strip()
+    
+    if User.query.filter_by(username=username).first():
+        flash('Error: User handle already exists.')
+        return redirect('/secret-portal-0831')
+        
+    new_user = User(username=username, password=password, name=name, role='user')
+    db.session.add(new_user)
+    db.session.commit()
+    flash(f'User profile created successfully for {name}.')
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/change-password', methods=['POST'])
+def change_password():
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    target_user_id = int(request.form.get('user_id'))
+    new_password = request.form.get('new_password').strip()
+    
+    user = User.query.get(target_user_id)
+    if user:
+        user.password = new_password
+        db.session.commit()
+        flash(f'Access pins reset successfully for user: {user.name}.')
+    return redirect('/secret-portal-0831')
 
 @app.route('/admin/create-slot', methods=['POST'])
 def create_slot():
-    if 'user_id' not in session or session['role'] != 'admin': 
-        abort(403)
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
         
     slot_type = request.form.get('slot_type')
     date = request.form.get('date')
@@ -234,8 +264,7 @@ def create_slot():
 
 @app.route('/admin/decide-slot/<int:slot_id>/<string:action>', methods=['POST'])
 def decide_slot(slot_id, action):
-    if 'user_id' not in session or session['role'] != 'admin': 
-        abort(403)
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
         
     slot = TimeSlot.query.get_or_404(slot_id)
     admin_message = request.form.get('admin_message', '').strip()
@@ -283,8 +312,7 @@ def decide_slot(slot_id, action):
 
 @app.route('/admin/decide-refund/<int:slot_id>/<string:action>', methods=['POST'])
 def decide_refund(slot_id, action):
-    if 'user_id' not in session or session['role'] != 'admin': 
-        abort(403)
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
         
     slot = TimeSlot.query.get_or_404(slot_id)
     admin_message = request.form.get('admin_message', '').strip()
@@ -349,7 +377,7 @@ def update_balance():
         
     diff = pool.balance_minutes - old_balance
     
-    receipt = Receipt(user_id=0, user_name="Admin Override", description=f"Manual balance configuration change ({mode.upper()})", minutes_changed=diff)
+    receipt = Receipt(user_id=0, user_name=\"Admin Override\", description=f\"Manual balance configuration change ({mode.upper()})\", minutes_changed=diff)
     db.session.add(receipt)
     db.session.commit()
     return redirect('/secret-portal-0831')
@@ -376,8 +404,7 @@ def send_notification():
 
 @app.route('/admin/delete-slot/<int:slot_id>', methods=['POST'])
 def delete_slot(slot_id):
-    if 'user_id' not in session or session['role'] != 'admin': 
-        abort(403)
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
         
     slot = TimeSlot.query.get_or_404(slot_id)
     db.session.delete(slot)
