@@ -31,27 +31,16 @@ class TimeSlot(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     slot_type = db.Column(db.String(20), nullable=False)   
     date = db.Column(db.String(20), nullable=False)        
-    start_time = db.Column(db.String(10), nullable=False)  
-    end_time = db.Column(db.String(10), nullable=True)     
+    start_time = db.Column(db.String(10), nullable=False)  # Admin framework start time
+    end_time = db.Column(db.String(10), nullable=True)     # Admin framework end time
     duration_minutes = db.Column(db.Integer, nullable=True) 
     status = db.Column(db.String(20), default='available') 
     claimed_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     requested_duration = db.Column(db.Integer, nullable=True) 
-
-class Notification(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True) # Null means Global Blast
-    is_global = db.Column(db.Boolean, default=False)
-    message = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-class Receipt(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    user_name = db.Column(db.String(50), nullable=False)
-    description = db.Column(db.String(200), nullable=False)
-    minutes_changed = db.Column(db.Integer, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Specific intervals picked by the client within an open window frame
+    user_start_time = db.Column(db.String(10), nullable=True)
+    user_end_time = db.Column(db.String(10), nullable=True)
 
 def format_minutes(total_minutes):
     if total_minutes is None:
@@ -111,12 +100,10 @@ def dashboard():
     available_slots = TimeSlot.query.filter_by(status='available').all()
     my_appointments = TimeSlot.query.filter_by(claimed_by=user.id).all()
     
-    # Pull notifications targeting this user specifically OR flagged as global updates
     notifications = Notification.query.filter(
         (Notification.user_id == user.id) | (Notification.is_global == True)
     ).order_by(Notification.timestamp.desc()).all()
     
-    # Shared log ledger across the family
     receipts = Receipt.query.order_by(Receipt.timestamp.desc()).all()
     all_approved = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'approved').all()
 
@@ -134,16 +121,41 @@ def book_slot(slot_id):
         flash('Slot already locked.')
         return redirect('/dashboard')
         
-    slot.claimed_by = session['user_id']
-    slot.status = 'pending'
-    
     if slot.slot_type == 'window':
-        hours = int(request.form.get('hours', 0))
-        minutes = int(request.form.get('minutes', 0))
-        slot.requested_duration = (hours * 60) + minutes
+        user_start = request.form.get('user_start_time', '').strip()
+        user_end = request.form.get('user_end_time', '').strip()
+        
+        if not user_start or not user_end:
+            flash('Please specify both target start and end times.')
+            return redirect('/dashboard')
+            
+        # Validate that client target falls directly inside the open window bounds
+        if user_start < slot.start_time or user_end > slot.end_time:
+            flash(f'Error: Requested segment must fall within the window frame ({slot.start_time} to {slot.end_time}).')
+            return redirect('/dashboard')
+            
+        if user_start >= user_end:
+            flash('Error: Chosen end time must come after your start time.')
+            return redirect('/dashboard')
+            
+        # Parse text parameters and map duration metrics
+        try:
+            t1 = datetime.strptime(user_start, '%H:%M')
+            t2 = datetime.strptime(user_end, '%H:%M')
+            diff_mins = int((t2 - t1).total_seconds() / 60)
+            
+            slot.user_start_time = user_start
+            slot.user_end_time = user_end
+            slot.requested_duration = diff_mins
+        except ValueError:
+            flash('Syntax parsing error processing time formats.')
+            return redirect('/dashboard')
     else:
         slot.requested_duration = slot.duration_minutes
         
+    slot.claimed_by = session['user_id']
+    slot.status = 'pending'
+    
     db.session.commit()
     flash('Booking request route dispatched to admin panel.')
     return redirect('/dashboard')
@@ -171,16 +183,17 @@ def admin_dashboard():
     users = User.query.filter_by(role='user').all()
     pending_slots = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'pending').all()
     refund_requests = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'refund_requested').all()
+    approved_slots = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'approved').all()
     all_slots = TimeSlot.query.all()
     
-    return render_template('admin.html', pool=pool, users=users, pending_slots=pending_slots, refund_requests=refund_requests, all_slots=all_slots)
+    return render_template('admin.html', pool=pool, users=users, pending_slots=pending_slots, refund_requests=refund_requests, approved_slots=approved_slots, all_slots=all_slots)
 
 @app.route('/admin/update-balance', methods=['POST'])
 def update_balance():
     if 'user_id' not in session or session['role'] != 'admin': abort(403)
     pool = GlobalPool.query.first()
     
-    mode = request.form.get('mode') # 'set', 'add', 'subtract'
+    mode = request.form.get('mode') 
     hours = int(request.form.get('hours') or 0)
     mins = int(request.form.get('minutes') or 0)
     input_minutes = (hours * 60) + mins
@@ -203,7 +216,7 @@ def update_balance():
 @app.route('/admin/send-notification', methods=['POST'])
 def send_notification():
     if 'user_id' not in session or session['role'] != 'admin': abort(403)
-    target = request.form.get('target') # 'global', or individual user_id
+    target = request.form.get('target') 
     message_text = request.form.get('message', '').strip()
     
     if not message_text:
@@ -253,16 +266,19 @@ def decide_slot(slot_id, action):
         slot.status = 'approved'
         pool.balance_minutes -= slot.requested_duration
         
-        receipt = Receipt(user_id=user.id, user_name=user.name, description=f"Massage Confirmed: {slot.date} @ {slot.start_time}", minutes_changed=-slot.requested_duration)
+        display_time = f"{slot.user_start_time} - {slot.user_end_time}" if slot.slot_type == 'window' else slot.start_time
+        receipt = Receipt(user_id=user.id, user_name=user.name, description=f"Massage Confirmed: {slot.date} @ {display_time}", minutes_changed=-slot.requested_duration)
         db.session.add(receipt)
         
-        notif = Notification(user_id=user.id, message=f"Your booking for {slot.date} has been APPROVED!")
+        notif = Notification(user_id=user.id, message=f"Your booking for {slot.date} ({display_time}) has been APPROVED!")
         db.session.add(notif)
         
     elif action == 'deny':
         slot.status = 'available'
         slot.claimed_by = None
         slot.requested_duration = None
+        slot.user_start_time = None
+        slot.user_end_time = None
         
         reason = f" Reason: {message_text}" if message_text else ""
         notif = Notification(user_id=user.id, message=f"Your booking request for {slot.date} was declined.{reason}")
@@ -282,7 +298,8 @@ def decide_refund(slot_id, action):
     if action == 'approve':
         pool.balance_minutes += slot.requested_duration
         
-        receipt = Receipt(user_id=user.id, user_name=user.name, description=f"Cancelled/Refunded: {slot.date} @ {slot.start_time}", minutes_changed=slot.requested_duration)
+        display_time = f"{slot.user_start_time} - {slot.user_end_time}" if slot.slot_type == 'window' else slot.start_time
+        receipt = Receipt(user_id=user.id, user_name=user.name, description=f"Cancelled/Refunded: {slot.date} @ {display_time}", minutes_changed=slot.requested_duration)
         db.session.add(receipt)
         
         notif = Notification(user_id=user.id, message=f"Your cancellation for {slot.date} was APPROVED. Hours returned to pool.")
@@ -302,7 +319,7 @@ def decide_refund(slot_id, action):
 def init_db():
     db.create_all()
     if not GlobalPool.query.first():
-        db.session.add(GlobalPool(balance_minutes=1800)) # 30 Hours Shared Pool
+        db.session.add(GlobalPool(balance_minutes=1800)) 
     if not User.query.filter_by(username='gretta').first():
         db.session.add(User(username='gretta', password='password123', name='Gretta (Mom)'))
     if not User.query.filter_by(username='peter').first():
