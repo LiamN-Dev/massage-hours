@@ -111,7 +111,7 @@ def dashboard():
     available_slots = TimeSlot.query.filter_by(status='available').all()
     my_appointments = TimeSlot.query.filter_by(claimed_by=user.id).all()
     
-    # Pull notifications targeting this user specifically OR flagged as global global updates
+    # Pull notifications targeting this user specifically OR flagged as global updates
     notifications = Notification.query.filter(
         (Notification.user_id == user.id) | (Notification.is_global == True)
     ).order_by(Notification.timestamp.desc()).all()
@@ -213,4 +213,107 @@ def send_notification():
         notif = Notification(is_global=True, message=message_text)
         db.session.add(notif)
     else:
-        user_id
+        user_id = int(target)
+        notif = Notification(user_id=user_id, is_global=False, message=message_text)
+        db.session.add(notif)
+        
+    db.session.commit()
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/create-slot', methods=['POST'])
+def create_slot():
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    
+    slot_type = request.form['slot_type']
+    date = request.form['date']
+    start_time = request.form['start_time']
+    
+    new_slot = TimeSlot(slot_type=slot_type, date=date, start_time=start_time)
+    
+    if slot_type == 'specific':
+        hours = int(request.form.get('spec_hours') or 0)
+        mins = int(request.form.get('spec_mins') or 0)
+        new_slot.duration_minutes = (hours * 60) + mins
+    else:
+        new_slot.end_time = request.form['end_time']
+        
+    db.session.add(new_slot)
+    db.session.commit()
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/decide-slot/<int:slot_id>/<string:action>', methods=['POST'])
+def decide_slot(slot_id, action):
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    slot = TimeSlot.query.get_or_404(slot_id)
+    user = User.query.get(slot.claimed_by)
+    pool = GlobalPool.query.first()
+    message_text = request.form.get('admin_message', '').strip()
+    
+    if action == 'approve':
+        slot.status = 'approved'
+        pool.balance_minutes -= slot.requested_duration
+        
+        receipt = Receipt(user_id=user.id, user_name=user.name, description=f"Massage Confirmed: {slot.date} @ {slot.start_time}", minutes_changed=-slot.requested_duration)
+        db.session.add(receipt)
+        
+        notif = Notification(user_id=user.id, message=f"Your booking for {slot.date} has been APPROVED!")
+        db.session.add(notif)
+        
+    elif action == 'deny':
+        slot.status = 'available'
+        slot.claimed_by = None
+        slot.requested_duration = None
+        
+        reason = f" Reason: {message_text}" if message_text else ""
+        notif = Notification(user_id=user.id, message=f"Your booking request for {slot.date} was declined.{reason}")
+        db.session.add(notif)
+        
+    db.session.commit()
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/decide-refund/<int:slot_id>/<string:action>', methods=['POST'])
+def decide_refund(slot_id, action):
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    slot = TimeSlot.query.get_or_404(slot_id)
+    user = User.query.get(slot.claimed_by)
+    pool = GlobalPool.query.first()
+    message_text = request.form.get('admin_message', '').strip()
+    
+    if action == 'approve':
+        pool.balance_minutes += slot.requested_duration
+        
+        receipt = Receipt(user_id=user.id, user_name=user.name, description=f"Cancelled/Refunded: {slot.date} @ {slot.start_time}", minutes_changed=slot.requested_duration)
+        db.session.add(receipt)
+        
+        notif = Notification(user_id=user.id, message=f"Your cancellation for {slot.date} was APPROVED. Hours returned to pool.")
+        db.session.add(notif)
+        db.session.delete(slot)
+        
+    elif action == 'deny':
+        slot.status = 'approved'
+        reason = f" Reason: {message_text}" if message_text else ""
+        notif = Notification(user_id=user.id, message=f"Your cancellation request for {slot.date} was declined.{reason}")
+        db.session.add(notif)
+        
+    db.session.commit()
+    return redirect('/secret-portal-0831')
+
+@app.cli.command("init-db")
+def init_db():
+    db.create_all()
+    if not GlobalPool.query.first():
+        db.session.add(GlobalPool(balance_minutes=1800)) # 30 Hours Shared Pool
+    if not User.query.filter_by(username='gretta').first():
+        db.session.add(User(username='gretta', password='password123', name='Gretta (Mom)'))
+    if not User.query.filter_by(username='peter').first():
+        db.session.add(User(username='peter', password='password456', name='Peter (Dad)'))
+    db.session.commit()
+    print("Database Pool initialized at 30 Hours.")
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+        if not GlobalPool.query.first():
+            db.session.add(GlobalPool(balance_minutes=1800))
+            db.session.commit()
+    app.run(debug=True)
