@@ -200,7 +200,7 @@ def admin_dashboard():
     refund_requests = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'refund_requested').all()
     
     # FIX: Perform an outer join with User so we fetch the user info alongside the slot for the index view
-    all_slots_with_users = db.session.query(TimeSlot, User).keys_with_rows().outerjoin(User, TimeSlot.claimed_by == User.id).all()
+    all_slots_with_users = db.session.query(TimeSlot, User).outerjoin(User, TimeSlot.claimed_by == User.id).all()
     
     return render_template('admin.html', pool=pool, users=users, pending_slots=pending_slots, refund_requests=refund_requests, all_slots=all_slots_with_users)
 
