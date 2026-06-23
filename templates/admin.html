@@ -126,7 +126,17 @@
                                 <div>
                                     <span class="text-[10px] font-bold text-amber-400 bg-amber-400/5 border border-amber-400/20 px-2 py-0.5 rounded">PENDING EVALUATION</span>
                                     <h4 class="font-bold text-white text-sm mt-2 font-sans">{{ user.name }}</h4>
-                                    <p class="text-xs text-zinc-400 mt-1 leading-relaxed">Target: <strong class="text-white font-mono">{{ slot.date }} @ {{ slot.start_time }}</strong></p>
+                                    
+                                    <p class="text-xs text-zinc-400 mt-1 leading-relaxed">
+                                        Target: <strong class="text-white font-mono">{{ slot.date }}</strong> 
+                                        @ <strong class="text-amber-400 font-mono">
+                                            {% if slot.slot_type == 'window' and slot.user_start_time %}
+                                                {{ slot.user_start_time }} - {{ slot.user_end_time }} <span class="text-zinc-600 text-[11px]">(Frame: {{ slot.start_time }} - {{ slot.end_time }})</span>
+                                            {% else %}
+                                                {{ slot.start_time }}
+                                            {% endif %}
+                                        </strong>
+                                    </p>
                                     <p class="text-xs text-zinc-500 font-mono">Calculated Footprint: {{ slot.requested_duration|format_time }}</p>
                                 </div>
                             </div>
@@ -151,6 +161,52 @@
             </div>
 
             <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                <h3 class="text-xs font-bold tracking-widest text-white uppercase mb-4">📆 Confirmed Master Schedule</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-zinc-400">
+                        <thead>
+                            <tr class="border-b border-zinc-800 text-zinc-500 font-medium font-mono">
+                                <th class="pb-2">Date</th>
+                                <th class="pb-2">Time Segment</th>
+                                <th class="pb-2">Type</th>
+                                <th class="pb-2">Footprint</th>
+                                <th class="pb-2 text-right">Recipient</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-800/40">
+                            {% for slot, recipient in approved_slots %}
+                                <tr class="text-zinc-300 hover:bg-zinc-950 transition-colors">
+                                    <td class="py-3.5 font-bold text-white font-mono">{{ slot.date }}</td>
+                                    <td class="py-3.5 font-mono text-indigo-400">
+                                        {% if slot.slot_type == 'window' and slot.user_start_time %}
+                                            {{ slot.user_start_time }} - {{ slot.user_end_time }}
+                                        {% else %}
+                                            {{ slot.start_time }}
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3.5">
+                                        <span class="text-[10px] px-1.5 py-0.5 rounded {% if slot.slot_type == 'specific' %}bg-amber-500/10 text-amber-400 border border-amber-500/20{% else %}bg-sky-500/10 text-sky-400 border border-sky-500/20{% endif %}">
+                                            {{ 'Fixed' if slot.slot_type == 'specific' else 'Window' }}
+                                        </span>
+                                    </td>
+                                    <td class="py-3.5 font-mono">{{ slot.requested_duration|format_time }}</td>
+                                    <td class="py-3.5 text-right">
+                                        <span class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-200 border border-zinc-700 font-sans text-[11px]">
+                                            {{ recipient.name }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="py-4 text-zinc-600 italic text-center">No active/confirmed master logs found.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
                 <h3 class="text-xs font-bold tracking-widest text-white uppercase mb-4">🔄 Input Queue: Cancellation Rollbacks</h3>
                 <div class="space-y-4">
                     {% for slot, user in refund_requests %}
@@ -158,7 +214,7 @@
                             <div>
                                 <span class="text-[10px] font-bold text-purple-400 bg-purple-400/5 border border-purple-400/20 px-2 py-0.5 rounded">ROLLBACK FILED</span>
                                 <h4 class="font-bold text-white text-sm mt-2 font-sans">{{ user.name }}</h4>
-                                <p class="text-xs text-zinc-400 mt-1">Cancellation target: <strong class="text-white font-mono">{{ slot.date }} @ {{ slot.start_time }}</strong></p>
+                                <p class="text-xs text-zinc-400 mt-1">Cancellation target: <strong class="text-white font-mono">{{ slot.date }} @ {% if slot.slot_type == 'window' %}{{ slot.user_start_time }} - {{ slot.user_end_time }}{% else %}{{ slot.start_time }}{% endif %}</strong></p>
                                 <p class="text-xs text-zinc-500 font-mono">Value credit release: {{ slot.requested_duration|format_time }}</p>
                             </div>
 
@@ -175,7 +231,7 @@
                                 </div>
                             </form>
                         </div>
-                    {% else %}
+                    {% else %}\
                         <p class="text-xs text-zinc-600 italic py-2">No rollback actions pending.</p>
                     {% endfor %}
                 </div>
