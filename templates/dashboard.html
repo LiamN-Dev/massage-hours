@@ -34,7 +34,7 @@
             </div>
 
             <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
-                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">🔔 System Notifications</h3>
+                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">📢 System Notifications</h3>
                 <div class="space-y-3 max-h-64 overflow-y-auto pr-1">
                     {% for notif in notifications %}
                         <div class="p-3.5 bg-zinc-50 border border-zinc-100 rounded-xl text-xs">
@@ -58,7 +58,7 @@
             {% endwith %}
 
             <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
-                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">📅 Claim Openings</h3>
+                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">📥 Claim Openings</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {% for slot in available_slots %}
                         <div class="p-5 border border-zinc-200/80 rounded-xl bg-zinc-50/40 flex flex-col justify-between">
@@ -79,10 +79,15 @@
 
                             <form action="/book-slot/{{ slot.id }}" method="POST" class="mt-5 pt-4 border-t border-zinc-100">
                                 {% if slot.slot_type == 'window' %}
-                                    <div class="flex gap-2 items-center mb-3">
-                                        <span class="text-xs text-zinc-400">Duration Target:</span>
-                                        <input type="number" name="hours" min="0" max="4" placeholder="H" required class="w-11 p-1 text-center bg-white border border-zinc-200 text-xs rounded-md">
-                                        <input type="number" name="minutes" min="0" max="59" step="5" placeholder="M" required class="w-11 p-1 text-center bg-white border border-zinc-200 text-xs rounded-md">
+                                    <div class="grid grid-cols-2 gap-2 mb-3 text-xs">
+                                        <div>
+                                            <label class="block text-zinc-400 text-[10px] uppercase mb-1 font-medium">Your Start Time</label>
+                                            <input type="time" name="user_start_time" required class="w-full p-2 bg-white border border-zinc-200 rounded-xl text-xs focus:outline-none focus:border-zinc-400">
+                                        </div>
+                                        <div>
+                                            <label class="block text-zinc-400 text-[10px] uppercase mb-1 font-medium">Your End Time</label>
+                                            <input type="time" name="user_end_time" required class="w-full p-2 bg-white border border-zinc-200 rounded-xl text-xs focus:outline-none focus:border-zinc-400">
+                                        </div>
                                     </div>
                                 {% endif %}
                                 <button type="submit" class="w-full bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold py-2.5 rounded-xl transition-colors cursor-pointer shadow-xs">
@@ -97,7 +102,7 @@
             </div>
 
             <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
-                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">👥 Confirmed Master Schedule</h3>
+                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">🗓️ Confirmed Master Schedule</h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead>
@@ -112,7 +117,13 @@
                             {% for slot, recipient in all_approved %}
                                 <tr class="text-zinc-600 hover:bg-zinc-50/50 transition-colors">
                                     <td class="py-3.5 font-medium text-zinc-900">{{ slot.date }}</td>
-                                    <td class="py-3.5">{{ slot.start_time }}</td>
+                                    <td class="py-3.5 font-mono">
+                                        {% if slot.slot_type == 'window' and slot.user_start_time %}
+                                            {{ slot.user_start_time }} - {{ slot.user_end_time }}
+                                        {% else %}
+                                            {{ slot.start_time }}
+                                        {% endif %}
+                                    </td>
                                     <td class="py-3.5">{{ slot.requested_duration|format_time }}</td>
                                     <td class="py-3.5 text-right">
                                         <span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-neutral-100 text-neutral-800 border border-neutral-200/40">
@@ -131,12 +142,19 @@
             </div>
 
             <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
-                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">📋 Your Dispatched Actions</h3>
+                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">🔄 Your Dispatched Actions</h3>
                 <div class="space-y-2">
                     {% for appointment in my_appointments %}
                         <div class="p-4 border border-zinc-100 rounded-xl flex justify-between items-center text-xs bg-zinc-50/30">
                             <div>
-                                <p class="font-semibold text-zinc-900">{{ appointment.date }} @ {{ appointment.start_time }}</p>
+                                <p class="font-semibold text-zinc-900">
+                                    {{ appointment.date }} @ 
+                                    {% if appointment.slot_type == 'window' and appointment.user_start_time %}
+                                        <span class="font-mono text-indigo-600">{{ appointment.user_start_time }} - {{ appointment.user_end_time }}</span>
+                                    {% else %}
+                                        <span class="font-mono">{{ appointment.start_time }}</span>
+                                    {% endif %}
+                                </p>
                                 <p class="text-[11px] text-zinc-400 mt-0.5">Value Block: {{ appointment.requested_duration|format_time }}</p>
                             </div>
                             <div class="flex items-center gap-3">
@@ -163,9 +181,9 @@
             </div>
 
             <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
-                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">🧾 System Balance Audit Log</h3>
+                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">📋 System Balance Audit Log</h3>
                 <div class="divide-y divide-zinc-100 max-h-56 overflow-y-auto pr-1">
-                    {% for receipt in receipts %}
+                    {% for receipt in receipts %}\
                         <div class="py-3 flex justify-between items-center text-xs">
                             <div>
                                 <p class="text-zinc-800 font-medium">{{ receipt.description }}</p>
@@ -175,7 +193,7 @@
                                 {% if receipt.minutes_changed > 0 %}+{% endif %}{{ receipt.minutes_changed|format_time }}
                             </span>
                         </div>
-                    {% else %}
+                    {% else %}\
                         <p class="text-xs text-zinc-400 italic pt-2">No historical transaction ledgers found.</p>
                     {% endfor %}
                 </div>
