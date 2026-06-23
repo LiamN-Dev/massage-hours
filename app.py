@@ -377,9 +377,7 @@ def update_balance():
         
     diff = pool.balance_minutes - old_balance
     
-    receipt = Receipt(user_id=0, user_name=\"Admin Override\", description=f\"Manual balance configuration change ({mode.upper()})\", minutes_changed=diff)
-    db.session.add(receipt)
-    db.session.commit()
+    receipt = Receipt(user_id=0, user_name="Admin Override", description=f"Manual balance configuration change ({mode.upper()})", minutes_changed=diff)
     return redirect('/secret-portal-0831')
 
 @app.route('/admin/send-notification', methods=['POST'])
