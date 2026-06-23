@@ -284,11 +284,11 @@ def init_db():
     db.create_all()
     # Create Mom (Gretta)
     if not User.query.filter_by(username='gretta').first():
-        gretta = User(username='gretta', password='password123', name='Gretta (Mom)', balance_minutes=810) # 13.5 hours
+        gretta = User(username='gretta', password='iLOVEpeter10!', name='Gretta (Mom)', balance_minutes=810) # 13.5 hours
         db.session.add(gretta)
     # Create Dad (Peter)
     if not User.query.filter_by(username='peter').first():
-        peter = User(username='peter', password='password456', name='Peter (Dad)', balance_minutes=810)  # 13.5 hours
+        peter = User(username='peter', password='2887', name='Peter (Dad)', balance_minutes=810)  # 13.5 hours
         db.session.add(peter)
     db.session.commit()
     print("Database built! Gretta and Peter profiles are online.")
