@@ -188,6 +188,132 @@ def admin_dashboard():
     
     return render_template('admin.html', pool=pool, users=users, pending_slots=pending_slots, refund_requests=refund_requests, all_slots=all_slots)
 
+@app.route('/admin/create-slot', methods=['POST'])
+def create_slot():
+    if 'user_id' not in session or session['role'] != 'admin': 
+        abort(403)
+        
+    slot_type = request.form.get('slot_type')
+    date = request.form.get('date')
+    start_time = request.form.get('start_time')
+    
+    new_slot = TimeSlot(
+        slot_type=slot_type,
+        date=date,
+        start_time=start_time,
+        status='available'
+    )
+    
+    if slot_type == 'specific':
+        hours = int(request.form.get('spec_hours') or 0)
+        minutes = int(request.form.get('spec_mins') or 0)
+        new_slot.duration_minutes = (hours * 60) + minutes
+    elif slot_type == 'window':
+        new_slot.end_time = request.form.get('end_time')
+        
+    db.session.add(new_slot)
+    db.session.commit()
+    
+    flash('New matrix timeline block deployed successfully.')
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/decide-slot/<int:slot_id>/<string:action>', methods=['POST'])
+def decide_slot(slot_id, action):
+    if 'user_id' not in session or session['role'] != 'admin': 
+        abort(403)
+        
+    slot = TimeSlot.query.get_or_404(slot_id)
+    admin_message = request.form.get('admin_message', '').strip()
+    user_id = slot.claimed_by
+    
+    if action == 'approve':
+        slot.status = 'approved'
+        pool = GlobalPool.query.first()
+        
+        if pool and slot.requested_duration:
+            pool.balance_minutes -= slot.requested_duration
+            user = User.query.get(user_id)
+            
+            receipt = Receipt(
+                user_id=user_id,
+                user_name=user.name if user else "System User",
+                description=f"Confirmed Block: {slot.date} @ {slot.start_time}",
+                minutes_changed=-slot.requested_duration
+            )
+            db.session.add(receipt)
+            
+        notif = Notification(
+            user_id=user_id,
+            is_global=False,
+            message=f"Your booking for {slot.date} has been APPROVED. {admin_message}"
+        )
+        db.session.add(notif)
+        flash('Booking request approved and balance deducted.')
+        
+    elif action == 'deny':
+        notif = Notification(
+            user_id=user_id,
+            is_global=False,
+            message=f"Your booking request for {slot.date} was declined. {admin_message}"
+        )
+        db.session.add(notif)
+        
+        slot.status = 'available'
+        slot.claimed_by = None
+        slot.requested_duration = None
+        flash('Booking request declined and cleared from pipeline.')
+        
+    db.session.commit()
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/decide-refund/<int:slot_id>/<string:action>', methods=['POST'])
+def decide_refund(slot_id, action):
+    if 'user_id' not in session or session['role'] != 'admin': 
+        abort(403)
+        
+    slot = TimeSlot.query.get_or_404(slot_id)
+    admin_message = request.form.get('admin_message', '').strip()
+    user_id = slot.claimed_by
+    
+    if action == 'approve':
+        pool = GlobalPool.query.first()
+        if pool and slot.requested_duration:
+            pool.balance_minutes += slot.requested_duration
+            user = User.query.get(user_id)
+            
+            receipt = Receipt(
+                user_id=user_id,
+                user_name=user.name if user else "System User",
+                description=f"Rollback processed: Released credits for {slot.date}",
+                minutes_changed=slot.requested_duration
+            )
+            db.session.add(receipt)
+            
+        notif = Notification(
+            user_id=user_id,
+            is_global=False,
+            message=f"Cancellation verified. Time slot credits returned. {admin_message}"
+        )
+        db.session.add(notif)
+        
+        slot.status = 'available'
+        slot.claimed_by = None
+        slot.requested_duration = None
+        flash('Cancellation approved and credits restored.')
+        
+    elif action == 'deny':
+        slot.status = 'approved'
+        notif = Notification(
+            user_id=user_id,
+            is_global=False,
+            message=f"Cancellation rollback request was refused. {admin_message}"
+        )
+        db.session.add(notif)
+        flash('Cancellation rollback request denied.')
+        
+    db.session.commit()
+    return redirect('/secret-portal-0831')
+
 @app.route('/admin/update-balance', methods=['POST'])
 def update_balance():
     if 'user_id' not in session or session['role'] != 'admin': abort(403)
