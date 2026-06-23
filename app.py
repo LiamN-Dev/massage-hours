@@ -359,6 +359,18 @@ def send_notification():
     db.session.commit()
     return redirect('/secret-portal-0831')
 
+@app.route('/admin/delete-slot/<int:slot_id>', methods=['POST'])
+def delete_slot(slot_id):
+    if 'user_id' not in session or session['role'] != 'admin': 
+        abort(403)
+        
+    slot = TimeSlot.query.get_or_404(slot_id)
+    db.session.delete(slot)
+    db.session.commit()
+    
+    flash('Time slot was safely cleared from the matrix index.')
+    return redirect('/secret-portal-0831')
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
