@@ -6,7 +6,6 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = "massage_debt_secret_key_0831"
 
-# Ensure session cookies expire when the browser is closed
 app.config['SESSION_PERMANENT'] = False
 
 DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///massages.db')
@@ -28,7 +27,7 @@ class User(db.Model):
 
 class GlobalPool(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    balance_minutes = db.Column(db.Integer, default=1800) # 30 Hours shared pool default (30 * 60)
+    balance_minutes = db.Column(db.Integer, default=1800)
 
 class TimeSlot(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -56,7 +55,9 @@ class Receipt(db.Model):
     minutes_changed = db.Column(db.Integer, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-def format_minutes(total_minutes):
+# --- JINJA CUSTOM FILTERS FOR AM/PM AND DURATIONS ---
+
+def format_duration(total_minutes):
     if total_minutes is None:
         return "0h 0m"
     hours = abs(total_minutes) // 60
@@ -64,37 +65,39 @@ def format_minutes(total_minutes):
     sign = "-" if total_minutes < 0 else ""
     return f"{sign}{hours}h {minutes}m"
 
-app.jinja_env.filters['format_time'] = format_minutes
+def format_ampm(time_str):
+    """Converts a 'HH:MM' 24hr string into an 'H:MM AM/PM' string."""
+    if not time_str:
+        return ""
+    try:
+        t = datetime.strptime(time_str.strip(), "%H:%M")
+        return t.strftime("%I:%M %p").lstrip("0")
+    except ValueError:
+        return time_str # Fallback to original string if formatted weirdly
 
-# --- CLI COMMAND FOR RENDER DEPLOYMENT ---
+app.jinja_env.filters['format_time'] = format_duration
+app.jinja_env.filters['ampm'] = format_ampm
+
+# --- CLI INITIALIZATION ---
 @app.cli.command("init-db")
 def init_db():
-    """Initializes the database tables and seeds base pipeline users."""
     db.create_all()
-    
-    # Ensure a global pool entry exists upon initialization
     if not GlobalPool.query.first():
         pool = GlobalPool(balance_minutes=1800)
         db.session.add(pool)
-    
-    # Auto-seed Gretta if her node doesn't exist yet
     if not User.query.filter_by(username='gretta').first():
         gretta_user = User(username='gretta', password='iLOVEpeter10!', name='Gretta', role='user')
         db.session.add(gretta_user)
-        
-    # Auto-seed Peter if his node doesn't exist yet
     if not User.query.filter_by(username='peter').first():
         peter_user = User(username='peter', password='2887', name='Peter', role='user')
         db.session.add(peter_user)
-        
     db.session.commit()
-    print("Database initialized and pipeline profiles seeded successfully.")
+    print("Database profiles initialized and seeded.")
 
 # --- NAVIGATION ROUTING ---
 
 @app.route('/')
 def home():
-    # Force log out and clear old session cookies whenever the root is opened fresh
     session.clear()
     return redirect('/login')
 
@@ -185,7 +188,7 @@ def request_refund(slot_id):
         flash('Cancellation filed for review.')
     return redirect('/dashboard')
 
-# --- ADMIN COMMAND ROUTER ---
+# --- ADMIN PANEL ---
 
 @app.route('/secret-portal-0831')
 def admin_dashboard():
