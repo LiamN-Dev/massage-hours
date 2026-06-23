@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Massage Command Portal</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-900 min-h-screen text-slate-100">
+    <nav class="bg-slate-950 border-b border-slate-800 py-4 px-6 flex justify-between items-center">
+        <h1 class="text-xl font-bold tracking-tight text-white">🎛️ Admin Control Matrix</h1>
+        <a href="/logout" class="text-sm font-medium text-slate-400 hover:text-white underline">Exit Dashboard</a>
+    </nav>
+
+    <main class="max-w-6xl mx-auto p-4 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        <div class="space-y-6">
+            <div class="bg-slate-950 p-6 rounded-xl border border-slate-800">
+                <h3 class="text-md font-bold text-slate-400 tracking-wider uppercase mb-4">Parent Credit Balances</h3>
+                <div class="space-y-6">
+                    {% for u in users %}
+                        <div class="p-4 bg-slate-900 border border-slate-800 rounded-lg space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-white text-base">{{ u.name }}</span>
+                                <span class="bg-indigo-900/50 text-indigo-300 font-mono text-sm px-2 py-0.5 rounded border border-indigo-800">
+                                    {{ u.balance_minutes|format_time }}
+                                </span>
+                            </div>
+                            <form action="/admin/update-balance/{{ u.id }}" method="POST" class="pt-2 border-t border-slate-800/60 flex items-center gap-2">
+                                <span class="text-xs text-slate-500">Set:</span>
+                                <input type="number" name="hours" placeholder="Hrs" required class="w-16 bg-slate-950 border border-slate-700 text-xs text-center p-1 rounded text-white">
+                                <input type="number" name="minutes" placeholder="Mins" required class="w-16 bg-slate-950 border border-slate-700 text-xs text-center p-1 rounded text-white">
+                                <button type="submit" class="text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1.5 rounded text-slate-300 font-medium">Update</button>
+                            </form>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="bg-slate-950 p-6 rounded-xl border border-slate-800">
+                <h3 class="text-md font-bold text-slate-400 tracking-wider uppercase mb-4">Create New Time Slot</h3>
+                <form action="/admin/create-slot" method="POST" class="space-y-4 text-sm">
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-medium">Slot Structure Type</label>
+                        <select name="slot_type" id="slot_type_select" onchange="toggleFormInputs()"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:outline-none">
+                            <option value="specific">Fixed Block (E.g. exactly 1h 30m)</option>
+                            <option value="window">Open Window (Parent inputs exact desired length)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-medium">Date</label>
+                        <input type="date" name="date" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-medium">Start Time</label>
+                        <input type="time" name="start_time" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white">
+                    </div>
+                    
+                    <div id="specific_inputs">
+                        <label class="block text-slate-400 mb-1 font-medium">Target Duration</label>
+                        <div class="flex gap-2">
+                            <input type="number" name="spec_hours" placeholder="Hours" class="w-1/2 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white">
+                            <input type="number" name="spec_mins" placeholder="Minutes" class="w-1/2 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white">
+                        </div>
+                    </div>
+
+                    <div id="window_inputs" class="hidden">
+                        <label class="block text-slate-400 mb-1 font-medium">Window Closure Time</label>
+                        <input type="time" name="end_time" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white">
+                    </div>
+
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 rounded-lg transition-colors shadow-xs">
+                        Publish Availability
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="md:col-span-2 space-y-6">
+            
+            <div class="bg-slate-950 p-6 rounded-xl border border-slate-800">
+                <h3 class="text-lg font-bold text-white mb-4">📥 Pending Booking Requests</h3>
+                <div class="space-y-4">
+                    {% for slot, user in pending_slots %}
+                        <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h4 class="font-bold text-indigo-400">{{ user.name }}</h4>
+                                    <p class="text-sm text-slate-300 mt-1">wants a massage on <strong class="text-white">{{ slot.date }}</strong> starting at <strong class="text-white">{{ slot.start_time }}</strong>.</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">Requested Duration length: {{ slot.requested_duration|format_time }}</p>
+                                </div>
+                            </div>
+                            
+                            <form action="" method="POST" id="form-{{ slot.id }}" class="pt-2 border-t border-slate-800 flex flex-col sm:flex-row gap-2 items-center">
+                                <input type="text" name="admin_message" placeholder="Optional notes if rejecting..." 
+                                       class="w-full sm:flex-1 bg-slate-950 border border-slate-700 text-xs rounded-lg p-2 text-white">
+                                <div class="flex gap-2 w-full sm:w-auto shrink-0">
+                                    <button type="submit" onclick="this.form.action='/admin/decide-slot/{{ slot.id }}/approve'" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg">
+                                        Approve
+                                    </button>
+                                    <button type="submit" onclick="this.form.action='/admin/decide-slot/{{ slot.id }}/deny'" class="flex-1 sm:flex-none bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-xs font-semibold px-4 py-2 rounded-lg border border-rose-500/30">
+                                        Deny
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    {% else %}
+                        <p class="text-sm text-slate-500 italic">No pending bookings waiting for review.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="bg-slate-950 p-6 rounded-xl border border-slate-800">
+                <h3 class="text-lg font-bold text-white mb-4">🔄 Cancellation & Refund Requests</h3>
+                <div class="space-y-4">
+                    {% for slot, user in refund_requests %}
+                        <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-3">
+                            <div>
+                                <h4 class="font-bold text-purple-400">{{ user.name }}</h4>
+                                <p class="text-sm text-slate-300 mt-1">Wants to cancel booking on <strong class="text-white">{{ slot.date }} @ {{ slot.start_time }}</strong>.</p>
+                                <p class="text-xs text-slate-500">Value to be refunded: {{ slot.requested_duration|format_time }}</p>
+                            </div>
+
+                            <form action="" method="POST" class="pt-2 border-t border-slate-800 flex flex-col sm:flex-row gap-2 items-center">
+                                <input type="text" name="admin_message" placeholder="Optional rejection text..." 
+                                       class="w-full sm:flex-1 bg-slate-950 border border-slate-700 text-xs rounded-lg p-2 text-white">
+                                <div class="flex gap-2 w-full sm:w-auto shrink-0">
+                                    <button type="submit" onclick="this.form.action='/admin/decide-refund/{{ slot.id }}/approve'" class="flex-1 sm:flex-none bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold px-4 py-2 rounded-lg">
+                                        Approve Refund
+                                    </button>
+                                    <button type="submit" onclick="this.form.action='/admin/decide-refund/{{ slot.id }}/deny'" class="flex-1 sm:flex-none bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold px-4 py-2 rounded-lg">
+                                        Deny Refund
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    {% else %}
+                        <p class="text-sm text-slate-500 italic">No cancellation requests outstanding.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        function toggleFormInputs() {
+            var selector = document.getElementById('slot_type_select').value;
+            if(selector === 'specific') {
+                document.getElementById('specific_inputs').classList.remove('hidden');
+                document.getElementById('window_inputs').classList.add('hidden');
+            } else {
+                document.getElementById('specific_inputs').classList.add('hidden');
+                document.getElementById('window_inputs').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
