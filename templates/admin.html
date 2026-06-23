@@ -182,33 +182,56 @@
             </div>
 
             <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
-                <h3 class="text-xs font-bold tracking-widest text-white uppercase mb-4">🗄️ System Registry: All Posted Time Slots</h3>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-xs">
-                        <thead>
-                            <tr class="border-b border-zinc-800 text-zinc-500 uppercase tracking-wider text-[10px]">
-                                <th class="pb-3 font-semibold">Date & Start Time</th>
-                                <th class="pb-3 font-semibold">Type</th>
-                                <th class="pb-3 font-semibold">Details / Capacity</th>
-                                <th class="pb-3 font-semibold">Current Status</th>
-                                <th class="pb-3 font-semibold text-right">Pipeline Management</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-zinc-800/40">
-                            {% for slot in all_slots %}
-                                <tr>
-                                    <td class="py-3 font-mono text-white">{{ slot.date }} @ {{ slot.start_time }}</td>
-                                    <td class="py-3 uppercase text-zinc-400 font-mono text-[11px]">{{ slot.slot_type }}</td>
-                                    <td class="py-3 text-zinc-400 font-mono">
-                                        {% if slot.slot_type == 'specific' %}
-                                            {{ slot.duration_minutes|format_time }}
-                                        {% else %}
-                                            Window until {{ slot.end_time or 'Open' }}
-                                            {% if slot.requested_duration %}
-                                                <br><span class="text-zinc-500 text-[10px]">(Req: {{ slot.requested_duration|format_time }})</span>
-                                            {% endif %}
-                                        {% endif %}
-                                    </td>
-                                    <td class="py-3">
-                                        {% if slot.status == 'available' %}
-                                            <span class="text-[10px] font-bold
+                <h3 class="text-xs font-bold tracking-widest text-white uppercase mb-4">🖥️ System Index: All Timeline Blocks</h3>
+                <div class="space-y-3">
+                    {% for slot in all_slots %}
+                        <div class="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div>
+                                <p class="text-xs text-zinc-400 font-mono font-bold">{{ slot.date }} @ {{ slot.start_time }}</p>
+                                <p class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5 font-mono">
+                                    Architecture: {{ slot.slot_type }} 
+                                    {% if slot.duration_minutes %} | Size: {{ slot.duration_minutes|format_time }}{% endif %}
+                                    {% if slot.requested_duration %} | Claimed Size: {{ slot.requested_duration|format_time }}{% endif %}
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-3 self-end sm:self-auto">
+                                {% if slot.status == 'available' %}
+                                    <span class="text-[10px] font-bold text-emerald-400 bg-emerald-400/5 border border-emerald-400/20 px-2 py-0.5 rounded">AVAILABLE</span>
+                                {% elif slot.status == 'pending' %}
+                                    <span class="text-[10px] font-bold text-amber-400 bg-amber-400/5 border border-amber-400/20 px-2 py-0.5 rounded">PENDING</span>
+                                {% elif slot.status == 'approved' %}
+                                    <span class="text-[10px] font-bold text-indigo-400 bg-indigo-400/5 border border-indigo-400/20 px-2 py-0.5 rounded">APPROVED</span>
+                                {% elif slot.status == 'refund_requested' %}
+                                    <span class="text-[10px] font-bold text-purple-400 bg-purple-400/5 border border-purple-400/20 px-2 py-0.5 rounded">ROLLBACK PENDING</span>
+                                {% endif %}
+                                
+                                <form action="/admin/delete-slot/{{ slot.id }}" method="POST" onsubmit="return confirm('Confirm complete structural removal of this block from index?');">
+                                    <button type="submit" class="text-rose-400 hover:text-rose-300 text-xs border border-rose-500/20 hover:bg-rose-950/40 px-2.5 py-1 rounded-lg transition-colors cursor-pointer font-mono">
+                                        [DELETE]
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-xs text-zinc-600 italic py-2">No system timeline blocks found in database core.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        function toggleFormInputs() {
+            var selector = document.getElementById('slot_type_select').value;
+            if(selector === 'specific') {
+                document.getElementById('specific_inputs').classList.remove('hidden');
+                document.getElementById('window_inputs').classList.add('hidden');
+            } else {
+                document.getElementById('specific_inputs').classList.add('hidden');
+                document.getElementById('window_inputs').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
