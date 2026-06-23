@@ -43,7 +43,7 @@ class TimeSlot(db.Model):
 
 class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True) # Null means Global Blast
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True) 
     is_global = db.Column(db.Boolean, default=False)
     message = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
@@ -66,11 +66,23 @@ def format_minutes(total_minutes):
 
 app.jinja_env.filters['format_time'] = format_minutes
 
+# --- CLI COMMAND FOR RENDER DEPLOYMENT ---
+@app.cli.command("init-db")
+def init_db():
+    """Initializes the database tables for Render's startup command."""
+    db.create_all()
+    # Ensure a global pool entry exists upon initialization
+    if not GlobalPool.query.first():
+        pool = GlobalPool(balance_minutes=1800)
+        db.session.add(pool)
+        db.session.commit()
+    print("Database initialized successfully.")
+
 # --- NAVIGATION ROUTING ---
 
 @app.route('/')
 def home():
-    # Force log out and clear old sessions whenever the site root is loaded fresh
+    # Force log out and clear old session cookies whenever the root is opened fresh
     session.clear()
     return redirect('/login')
 
