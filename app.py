@@ -322,7 +322,6 @@ def create_slot():
         hours = int(request.form.get('spec_hours') or 0)
         minutes = int(request.form.get('spec_mins') or 0)
         new_slot.duration_minutes = (hours * 60) + minutes
-        # Compute exact end time automatically for explicit blocks
         new_slot.end_time = minutes_to_time(time_to_minutes(start_time) + new_slot.duration_minutes)
     elif slot_type == 'window':
         new_slot.end_time = request.form.get('end_time')
@@ -358,7 +357,7 @@ def decide_slot(slot_id, action):
             db.session.add(receipt)
             
         if user:
-            user.is_locked = True # REMAIN LOCKED: Can't claim another slot until manual unlock or successful rollback
+            user.is_locked = True
             
         notif = Notification(
             user_id=user_id,
@@ -370,7 +369,7 @@ def decide_slot(slot_id, action):
         
     elif action == 'deny':
         if user:
-            user.is_locked = False # UNLOCKED: Booking was rejected, so they are free to try again
+            user.is_locked = False
             
         notif = Notification(
             user_id=user_id,
@@ -410,7 +409,7 @@ def decide_refund(slot_id, action):
             db.session.add(receipt)
             
         if user:
-            user.is_locked = False # UNLOCKED: Reversal fully completed and approved
+            user.is_locked = False
             
         notif = Notification(
             user_id=user_id,
@@ -426,7 +425,7 @@ def decide_refund(slot_id, action):
         
     elif action == 'deny':
         if user:
-            user.is_locked = True # REMAIN LOCKED: Reversal was denied, meaning they retain the active appointment
+            user.is_locked = True
             
         slot.status = 'approved'
         notif = Notification(
@@ -498,7 +497,25 @@ def delete_slot(slot_id):
     flash('Timeline item safely removed from records.')
     return redirect('/secret-portal-0831')
 
+
+# --- RENDER DEPLOYMENT CLI COMMANDS ---
+
+@app.cli.command("init-db")
+def init_db():
+    """Initializes the database engine schemas and default records on Render production."""
+    db.create_all()
+    if not GlobalPool.query.first():
+        db.session.add(GlobalPool(balance_minutes=1800))
+    if not User.query.filter_by(username='gretta').first():
+        db.session.add(User(username='gretta', password='iLOVEpeter10!', name='Gretta', role='user'))
+    if not User.query.filter_by(username='peter').first():
+        db.session.add(User(username='peter', password='2887', name='Peter', role='user'))
+    db.session.commit()
+    print("Database infrastructure initialized successfully.")
+
+
 if __name__ == '__main__':
+    # Local running backup execution block
     with app.app_context():
         db.create_all()
         if not GlobalPool.query.first():
