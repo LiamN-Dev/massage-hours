@@ -22,12 +22,12 @@ class User(db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(50), nullable=False) 
     name = db.Column(db.String(50), nullable=False)
-    role = db.Column(db.String(20), default='user')     
-    is_locked = db.Column(db.Boolean, default=False)
+    role = db.Column(db.String(20), default='user')
+    is_locked = db.Column(db.Boolean, default=False)  
 
 class GlobalPool(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    balance_minutes = db.Column(db.Integer, default=1800) 
+    balance_minutes = db.Column(db.Integer, default=1800)
 
 class TimeSlot(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -169,7 +169,6 @@ def book_slot(slot_id):
     if slot.slot_type == 'window':
         start_input = request.form.get('start_time')
         end_input = request.form.get('end_time')
-        
         if not start_input or not end_input:
             flash('Error: Complete window timeframe bounds must be targeted.')
             return redirect('/dashboard')
@@ -190,7 +189,7 @@ def book_slot(slot_id):
         if req_start >= req_end:
             flash('Chronology error: End time must fall after the start time.')
             return redirect('/dashboard')
-                
+            
         duration = req_end - req_start
         if duration > 80:
             flash('Constraint error: Custom block requests cannot exceed 1 hour and 20 minutes.')
@@ -226,7 +225,7 @@ def book_slot(slot_id):
         slot.status = 'pending'
         slot.claimed_by = user.id
         
-    user.is_locked = True
+    user.is_locked = True 
     db.session.commit()
     flash('Booking registered. Profile locked pending management evaluation.')
     return redirect('/dashboard')
@@ -238,15 +237,14 @@ def request_refund(slot_id):
         
     user = User.query.get(session['user_id'])
     slot = TimeSlot.query.get_or_404(slot_id)
-    
     if slot.claimed_by == user.id and slot.status == 'approved':
         slot.status = 'refund_requested'
-        user.is_locked = True
+        user.is_locked = True 
         db.session.commit()
         flash('Cancellation filed for review. Account restricted during confirmation.')
     return redirect('/dashboard')
 
-# --- MANAGEMENT PANEL SUITE ---
+# --- LUXURY MANAGEMENT PANEL SUITE ---
 
 @app.route('/secret-portal-0831')
 def admin_dashboard():
@@ -308,7 +306,7 @@ def change_password():
 @app.route('/admin/create-slot', methods=['POST'])
 def create_slot():
     if 'user_id' not in session or session['role'] != 'admin': abort(403)
-    
+        
     slot_type = request.form.get('slot_type')
     date = request.form.get('date')
     start_time = request.form.get('start_time')
@@ -324,18 +322,21 @@ def create_slot():
         hours = int(request.form.get('spec_hours') or 0)
         minutes = int(request.form.get('spec_mins') or 0)
         new_slot.duration_minutes = (hours * 60) + minutes
+        # Compute exact end time automatically for explicit blocks
+        new_slot.end_time = minutes_to_time(time_to_minutes(start_time) + new_slot.duration_minutes)
     elif slot_type == 'window':
         new_slot.end_time = request.form.get('end_time')
         
     db.session.add(new_slot)
     db.session.commit()
+    
     flash('New available frame integrated into booking queue.')
     return redirect('/secret-portal-0831')
 
 @app.route('/admin/decide-slot/<int:slot_id>/<string:action>', methods=['POST'])
 def decide_slot(slot_id, action):
     if 'user_id' not in session or session['role'] != 'admin': abort(403)
-    
+        
     slot = TimeSlot.query.get_or_404(slot_id)
     admin_message = request.form.get('admin_message', '').strip()
     user_id = slot.claimed_by
@@ -344,6 +345,7 @@ def decide_slot(slot_id, action):
     if action == 'approve':
         slot.status = 'approved'
         pool = GlobalPool.query.first()
+        
         if pool and slot.requested_duration:
             pool.balance_minutes -= slot.requested_duration
             
@@ -356,7 +358,7 @@ def decide_slot(slot_id, action):
             db.session.add(receipt)
             
         if user:
-            user.is_locked = False
+            user.is_locked = True # REMAIN LOCKED: Can't claim another slot until manual unlock or successful rollback
             
         notif = Notification(
             user_id=user_id,
@@ -364,11 +366,11 @@ def decide_slot(slot_id, action):
             message=f"Your booking for {slot.date} has been APPROVED. {admin_message}"
         )
         db.session.add(notif)
-        flash('Booking validated successfully. User restrictions removed.')
+        flash('Booking validated successfully. User remains locked to prevent multiple overlapping claims.')
         
     elif action == 'deny':
         if user:
-            user.is_locked = False
+            user.is_locked = False # UNLOCKED: Booking was rejected, so they are free to try again
             
         notif = Notification(
             user_id=user_id,
@@ -388,7 +390,7 @@ def decide_slot(slot_id, action):
 @app.route('/admin/decide-refund/<int:slot_id>/<string:action>', methods=['POST'])
 def decide_refund(slot_id, action):
     if 'user_id' not in session or session['role'] != 'admin': abort(403)
-    
+        
     slot = TimeSlot.query.get_or_404(slot_id)
     admin_message = request.form.get('admin_message', '').strip()
     user_id = slot.claimed_by
@@ -408,7 +410,7 @@ def decide_refund(slot_id, action):
             db.session.add(receipt)
             
         if user:
-            user.is_locked = False
+            user.is_locked = False # UNLOCKED: Reversal fully completed and approved
             
         notif = Notification(
             user_id=user_id,
@@ -424,7 +426,8 @@ def decide_refund(slot_id, action):
         
     elif action == 'deny':
         if user:
-            user.is_locked = False
+            user.is_locked = True # REMAIN LOCKED: Reversal was denied, meaning they retain the active appointment
+            
         slot.status = 'approved'
         notif = Notification(
             user_id=user_id,
@@ -432,7 +435,7 @@ def decide_refund(slot_id, action):
             message=f"Your cancellation request was evaluated and declined. {admin_message}"
         )
         db.session.add(notif)
-        flash('Cancellation request declined.')
+        flash('Cancellation request declined. Active slot and user restrictions retained.')
         
     db.session.commit()
     return redirect('/secret-portal-0831')
@@ -460,6 +463,7 @@ def update_balance():
     receipt = Receipt(user_id=0, user_name="Admin Override", description=f"Manual balance configuration change ({mode.upper()})", minutes_changed=diff)
     db.session.add(receipt)
     db.session.commit()
+    
     flash('Global balance allocation adjusted successfully.')
     return redirect('/secret-portal-0831')
 
@@ -486,26 +490,13 @@ def send_notification():
 @app.route('/admin/delete-slot/<int:slot_id>', methods=['POST'])
 def delete_slot(slot_id):
     if 'user_id' not in session or session['role'] != 'admin': abort(403)
+        
     slot = TimeSlot.query.get_or_404(slot_id)
     db.session.delete(slot)
     db.session.commit()
+    
     flash('Timeline item safely removed from records.')
     return redirect('/secret-portal-0831')
-
-# --- RENDER DEPLOYMENT CLI COMMANDS ---
-
-@app.cli.command('init-db')
-def init_db_command():
-    """Initializes the database tables and seeds default profiles on production."""
-    db.create_all()
-    if not GlobalPool.query.first():
-        db.session.add(GlobalPool(balance_minutes=1800))
-    if not User.query.filter_by(username='gretta').first():
-        db.session.add(User(username='gretta', password='iLOVEpeter10!', name='Gretta', role='user'))
-    if not User.query.filter_by(username='peter').first():
-        db.session.add(User(username='peter', password='2887', name='Peter', role='user'))
-    db.session.commit()
-    print("Database initialized and seeded successfully!")
 
 if __name__ == '__main__':
     with app.app_context():
