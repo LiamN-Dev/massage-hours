@@ -3,597 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Member Dashboard</title>
+    <title>Family Lounge Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
-        :root {
-            --bg: #f8fafc;
-            --surface: #ffffff;
-            --text: #0f172a;
-            --text-light: #64748b;
-            --primary: #6366f1;
-            --primary-hover: #4f46e5;
-            --success: #10b981;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --border: #e2e8f0;
-            --radius: 12px;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            line-height: 1.5;
-            padding: 2rem 1rem;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            animation: fadeIn 0.6s ease;
-        }
-
-        /* Top Header Navigation */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--surface);
-            padding: 1.25rem 2rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            margin-bottom: 2rem;
-            animation: slideDown 0.5s ease;
-        }
-
-        .user-profile h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
-        }
-
-        .user-profile p {
-            font-size: 0.875rem;
-            color: var(--text-light);
-        }
-
-        .logout-btn {
-            background: transparent;
-            border: 1px solid var(--border);
-            color: var(--text-light);
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.875rem;
-            transition: var(--transition);
-        }
-
-        .logout-btn:hover {
-            background: var(--danger);
-            color: white;
-            border-color: var(--danger);
-        }
-
-        /* System Messages / Flash Alerts */
-        .flash-container {
-            margin-bottom: 1.5rem;
-        }
-
-        .flash-message {
-            background: #eff6ff;
-            color: #1e40af;
-            border-left: 4px solid #3b82f6;
-            padding: 1rem;
-            border-radius: 6px;
-            font-size: 0.95rem;
-            margin-bottom: 0.5rem;
-            animation: pulseIn 0.3s ease;
-        }
-
-        /* Overview Summary Grid */
-        .overview-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2.5rem;
-        }
-
-        .stat-card {
-            background: var(--surface);
-            padding: 1.75rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            position: relative;
-            overflow: hidden;
-            transition: var(--transition);
-        }
-
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
-        }
-
-        .stat-card.pool::before { background: var(--primary); }
-        .stat-card.status::before { background: var(--success); }
-        .stat-card.status.locked::before { background: var(--warning); }
-
-        .stat-label {
-            font-size: 0.875rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-light);
-            font-weight: 600;
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-        }
-
-        /* Status Badge Indicators */
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            width: fit-content;
-        }
-
-        .badge.locked { background: #fef3c7; color: #d97706; animation: subtlePulse 2s infinite; }
-        .badge.open { background: #d1fae5; color: #065f46; }
-        .badge.pending { background: #fef3c7; color: #d97706; }
-        .badge.approved { background: #d1fae5; color: #065f46; }
-        .badge.refund { background: #fee2e2; color: #991b1b; }
-
-        /* Main Workspace Structure */
-        .dashboard-sections {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 2rem;
-        }
-
-        @media (max-width: 968px) {
-            .dashboard-sections { grid-template-columns: 1fr; }
-        }
-
-        .section-block {
-            background: var(--surface);
-            padding: 2rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            margin-bottom: 2rem;
-        }
-
-        .section-title {
-            font-size: 1.25rem;
-            font-weight: 700;
-            margin-bottom: 1.25rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid var(--bg);
-        }
-
-        /* Timeline Slot Cards styling */
-        .slots-container {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .slot-card {
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 1.25rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            transition: var(--transition);
-        }
-
-        .slot-card:hover {
-            border-color: var(--primary);
-            background: #fafafa;
-        }
-
-        .slot-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-        }
-
-        .slot-time {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: var(--text);
-        }
-
-        .slot-date {
-            font-size: 0.85rem;
-            color: var(--text-light);
-            margin-top: 0.25rem;
-        }
-
-        .slot-meta {
-            font-size: 0.9rem;
-            color: var(--text-light);
-        }
-
-        /* Interactive Custom Timing Framework Form */
-        .window-booking-form {
-            background: var(--bg);
-            padding: 1rem;
-            border-radius: 8px;
-            margin-top: 0.5rem;
-        }
-
-        .form-row {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .input-group {
-            flex: 1;
-            min-width: 120px;
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
-
-        .input-group label {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--text-light);
-            text-transform: uppercase;
-        }
-
-        .input-group input {
-            padding: 0.5rem;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            font-size: 0.9rem;
-            outline: none;
-            transition: var(--transition);
-        }
-
-        .input-group input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
-        }
-
-        /* Action Buttons */
-        .btn {
-            padding: 0.6rem 1.2rem;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: var(--transition);
-            width: 100%;
-            text-align: center;
-        }
-
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:hover { background: var(--primary-hover); }
-        .btn-primary:disabled { background: var(--border); color: var(--text-light); cursor: not-allowed; }
-
-        .btn-danger { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
-        .btn-danger:hover { background: var(--danger); color: white; }
-
-        /* Notification Center Feed Stack */
-        .notif-item {
-            padding: 0.75rem 0;
-            border-bottom: 1px dashed var(--border);
-            font-size: 0.9rem;
-        }
-
-        .notif-item:last-child { border: none; }
-        .notif-text { color: var(--text); }
-        .notif-time { font-size: 0.75rem; color: var(--text-light); margin-top: 0.25rem; }
-
-        /* General Table styling for Activity Logs */
-        .table-wrapper {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.875rem;
-            text-align: left;
-        }
-
-        th {
-            padding: 0.75rem 1rem;
-            background: var(--bg);
-            color: var(--text-light);
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-        }
-
-        td {
-            padding: 1rem;
-            border-bottom: 1px solid var(--border);
-        }
-
-        /* Keyframe Animations Engine */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(12px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes pulseIn {
-            from { opacity: 0; transform: scale(0.98); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        @keyframes subtlePulse {
-            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
-            70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-        }
+        body { font-family: system-ui, -apple-system, sans-serif; }
     </style>
 </head>
-<body>
-
-<div class="container">
+<body class="bg-[#fcfcfd] text-zinc-800 min-h-screen antialiased selection:bg-neutral-200">
     
-    <!-- Top Header Navigation -->
-    <header>
-        <div class="user-profile">
-            <h1>Welcome back, {{ user.name }}</h1>
-            <p>Account ID Handler: @{{ user.username }}</p>
+    <nav class="max-w-6xl mx-auto px-6 py-6 flex justify-between items-center border-b border-zinc-100">
+        <div class="flex items-center gap-2">
+            <div class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span class="text-xs font-semibold tracking-wider uppercase text-zinc-400">{{ user.name }} Node</span>
         </div>
-        <a href="/logout" class="logout-btn">Terminate Session</a>
-    </header>
+        <a href="/logout" class="text-xs font-medium text-zinc-400 hover:text-zinc-900 transition-colors">Terminate Session</a>
+    </nav>
 
-    <!-- System Messages / Flash Alerts -->
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            <div class="flash-container">
-                {% for message in messages %}
-                    <div class="flash-message">{{ message }}</div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-
-    <!-- Overview Summary Grid -->
-    <div class="overview-grid">
-        <div class="stat-card pool">
-            <span class="stat-label">Global Allocated Balance</span>
-            <span class="stat-value">{{ pool.balance_minutes|format_time }}</span>
-        </div>
-        <div class="stat-card status {% if user.is_locked %}locked{% endif %}">
-            <span class="stat-label">Account Operation Lock State</span>
-            <div style="margin-top: 0.5rem;">
-                {% if user.is_locked %}
-                    <span class="badge locked">Locked Pending Approval</span>
-                {% else %}
-                    <span class="badge open">Active / Unrestricted</span>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Workspace Structure -->
-    <div class="dashboard-sections">
+    <main class="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        <!-- Left Column: Operations and Availability Layout -->
-        <div class="main-column">
-            
-            <!-- Section: User Personal Schedule Deployments -->
-            <div class="section-block">
-                <h2 class="section-title">My Tracked Appointment Protocols</h2>
-                <div class="slots-container">
-                    {% if not my_appointments %}
-                        <p style="color: var(--text-light); font-size: 0.95rem;">No registered operations or queue claims recorded.</p>
+        <div class="space-y-6">
+            <div class="bg-zinc-900 text-white p-8 rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[180px]">
+                <div class="absolute -right-10 -bottom-10 h-32 w-32 bg-indigo-500/10 blur-3xl rounded-full"></div>
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-md">
+                        Shared Family Balance Pool
+                    </span>
+                    <h2 class="text-5xl font-light tracking-tight mt-6 text-white">{{ pool.balance_minutes|format_time }}</h2>
+                </div>
+                <p class="text-xs text-zinc-400 mt-4 border-t border-zinc-800 pt-3">Combined credit resource for Mom & Dad.</p>
+            </div>
+
+            <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
+                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">📢 System Notifications</h3>
+                <div class="space-y-3 max-h-64 overflow-y-auto pr-1">
+                    {% for notif in notifications %}
+                        <div class="p-3.5 bg-zinc-50 border border-zinc-100 rounded-xl text-xs">
+                            <p class="text-zinc-600 leading-relaxed">{{ notif.message }}</p>
+                            <span class="text-[10px] text-zinc-400 mt-2 block font-mono">{{ notif.timestamp.strftime('%m/%d - %I:%M %p') }}</span>
+                        </div>
                     {% else %}
-                        {% for slot in my_appointments %}
-                            <div class="slot-card" style="border-left: 4px solid var(--primary);">
-                                <div class="slot-header">
-                                    <div>
-                                        <!-- Applied custom ampm filters safely here -->
-                                        <div class="slot-time">{{ slot.start_time|ampm }} - {{ slot.end_time|ampm }}</div>
-                                        <div class="slot-date">{{ slot.date }}</div>
+                        <p class="text-xs text-zinc-400 italic">Communication terminal quiet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-6">
+            {% with messages = get_flashed_messages() %}
+              {% if messages %}
+                <div class="bg-zinc-900 text-zinc-100 p-4 rounded-xl text-xs font-medium border border-zinc-800">
+                    {{ messages[0] }}
+                </div>
+              {% endif %}
+            {% endwith %}
+
+            <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
+                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">🔓 Claim Openings</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {% for slot in available_slots %}
+                        <div class="p-5 border border-zinc-200/80 rounded-xl bg-zinc-50/40 flex flex-col justify-between">
+                            <div>
+                                <span class="inline-block text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded border
+                                    {% if slot.slot_type == 'specific' %}bg-amber-50 text-amber-700 border-amber-200{% else %}bg-sky-50 text-sky-700 border-sky-200{% endif %}">
+                                    {{ 'Fixed Block' if slot.slot_type == 'specific' else 'Flexible Window' }}
+                                </span>
+                                <h4 class="font-semibold text-zinc-900 text-base mt-2">{{ slot.date }}</h4>
+                                <p class="text-xs text-zinc-500 mt-1">Commences: <strong class="text-zinc-800 font-medium">{{ slot.start_time|ampm }}</strong></p>
+                                
+                                {% if slot.slot_type == 'specific' %}
+                                    <p class="text-xs text-zinc-500">Duration value: <strong class="text-zinc-800 font-medium">{{ slot.duration_minutes|format_time }}</strong></p>
+                                {% else %}
+                                    <p class="text-xs text-zinc-500">Window Closes: <strong class="text-zinc-800 font-medium">{{ slot.end_time|ampm }}</strong></p>
+                                {% endif %}
+                            </div>
+
+                            <form action="/book-slot/{{ slot.id }}" method="POST" class="mt-5 pt-4 border-t border-zinc-100">
+                                {% if slot.slot_type == 'window' %}
+                                    <div class="flex gap-2 items-center mb-3">
+                                        <span class="text-xs text-zinc-400">Duration Target:</span>
+                                        <input type="number" name="hours" min="0" max="4" placeholder="H" required class="w-11 p-1 text-center bg-white border border-zinc-200 text-xs rounded-md">
+                                        <input type="number" name="minutes" min="0" max="59" step="5" placeholder="M" required class="w-11 p-1 text-center bg-white border border-zinc-200 text-xs rounded-md">
                                     </div>
-                                    <div>
-                                        {% if slot.status == 'pending' %}
-                                            <span class="badge pending">Pending Audit</span>
-                                        {% elif slot.status == 'approved' %}
-                                            <span class="badge approved">Approved Activation</span>
-                                        {% elif slot.status == 'refund_requested' %}
-                                            <span class="badge refund">Cancellation Pending</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <div class="slot-meta">
-                                    Configured Profile Frame Block: <strong>{{ slot.requested_duration|format_time }}</strong>
-                                </div>
-                                {% if slot.status == 'approved' %}
-                                    <form action="/request-refund/{{ slot.id }}" method="POST">
-                                        <button type="submit" class="btn btn-danger" style="width: auto;">File Cancellation Request</button>
+                                {% endif %}
+                                <button type="submit" class="w-full bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold py-2.5 rounded-xl transition-colors cursor-pointer shadow-xs">
+                                    Lock Appointment Request
+                                </button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <p class="text-xs text-zinc-400 italic sm:col-span-2 py-4">No active availabilities are currently open.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
+                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">🗓️ Confirmed Master Schedule</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-zinc-100 text-zinc-400 font-medium">
+                                <th class="pb-2 font-medium">Date Index</th>
+                                <th class="pb-2 font-medium">Time Window</th>
+                                <th class="pb-2 font-medium">Allocated Length</th>
+                                <th class="pb-2 font-medium text-right">Recipient</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-50">
+                            {% for slot, recipient in all_approved %}
+                                <tr class="text-zinc-600 hover:bg-zinc-50/50 transition-colors">
+                                    <td class="py-3.5 font-medium text-zinc-900">{{ slot.date }}</td>
+                                    <td class="py-3.5">{{ slot.start_time|ampm }}</td>
+                                    <td class="py-3.5">{{ slot.requested_duration|format_time }}</td>
+                                    <td class="py-3.5 text-right">
+                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-neutral-100 text-neutral-800 border border-neutral-200/40">
+                                            {{ recipient.name }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="py-4 text-zinc-400 italic text-center">Master list empty. No scheduled events.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
+                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">🔄 Your Dispatched Actions</h3>
+                <div class="space-y-2">
+                    {% for appointment in my_appointments %}
+                        <div class="p-4 border border-zinc-100 rounded-xl flex justify-between items-center text-xs bg-zinc-50/30">
+                            <div>
+                                <p class="font-semibold text-zinc-900">{{ appointment.date }} @ {{ appointment.start_time|ampm }}</p>
+                                <p class="text-[11px] text-zinc-400 mt-0.5">Value Block: {{ appointment.requested_duration|format_time }}</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide
+                                    {% if appointment.status == 'pending' %}bg-amber-50 text-amber-800 border border-amber-200/40
+                                    {% elif appointment.status == 'approved' %}bg-emerald-50 text-emerald-800 border border-emerald-200/40
+                                    {% elif appointment.status == 'refund_requested' %}bg-purple-50 text-purple-800 border border-purple-200/40{% endif %}">
+                                    {{ appointment.status.replace('_', ' ') }}
+                                </span>
+                                
+                                {% if appointment.status == 'approved' %}
+                                    <form action="/request-refund/{{ appointment.id }}" method="POST">
+                                        <button type="submit" class="text-[11px] text-rose-600 hover:bg-rose-50 border border-rose-100 px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer">
+                                            Request Cancellation
+                                        </button>
                                     </form>
                                 {% endif %}
                             </div>
-                        {% endfor %}
-                    {% endif %}
+                        </div>
+                    {% else %}
+                        <p class="text-xs text-zinc-400 italic">No historical operations mapped to this link.</p>
+                    {% endfor %}
                 </div>
             </div>
 
-            <!-- Section: Global Queue Availability Matrix -->
-            <div class="section-block">
-                <h2 class="section-title">Available Operations Queue Window</h2>
-                <div class="slots-container">
-                    {% if not available_slots %}
-                        <p style="color: var(--text-light); font-size: 0.95rem;">No available window metrics found matching current timeframe sweeps.</p>
-                    {% else %}
-                        {% for slot in available_slots %}
-                            <div class="slot-card">
-                                <div class="slot-header">
-                                    <div>
-                                        <!-- Rendered times using ampm filter -->
-                                        <div class="slot-time">
-                                            {% if slot.slot_type == 'window' %}
-                                                Window Block: {{ slot.start_time|ampm }} to {{ slot.end_time|ampm }}
-                                            {% else %}
-                                                Fixed Target: {{ slot.start_time|ampm }}
-                                            {% endif %}
-                                        </div>
-                                        <div class="slot-date">Target Date: {{ slot.date }}</div>
-                                    </div>
-                                    <div>
-                                        <span class="badge open">Available</span>
-                                    </div>
-                                </div>
-
-                                <div class="slot-meta">
-                                    {% if slot.slot_type == 'specific' %}
-                                        Fixed Reservation Allocation: <strong>{{ slot.duration_minutes|format_time }}</strong>
-                                    {% else %}
-                                        Custom configuration window framework bounds. Max request limit: 1h 20m.
-                                    {% endif %}
-                                </div>
-
-                                <!-- Handle dynamic variations between fixed or windowed profiles -->
-                                <form action="/book-slot/{{ slot.id }}" method="POST">
-                                    {% if slot.slot_type == 'window' %}
-                                        <div class="window-booking-form">
-                                            <div class="form-row">
-                                                <div class="input-group">
-                                                    <label>Requested Start</label>
-                                                    <input type="time" name="start_time" min="{{ slot.start_time }}" max="{{ slot.end_time }}" required>
-                                                </div>
-                                                <div class="input-group">
-                                                    <label>Requested End</label>
-                                                    <input type="time" name="end_time" min="{{ slot.start_time }}" max="{{ slot.end_time }}" required>
-                                                </div>
-                                            </div>
-                                            <button type="submit" class="btn btn-primary" {% if user.is_locked %}disabled{% endif %}>
-                                                {% if user.is_locked %}Unlock Required{% else %}Confirm Custom Block Booking{% endif %}
-                                            </button>
-                                        </div>
-                                    {% else %}
-                                        <button type="submit" class="btn btn-primary" {% if user.is_locked %}disabled{% endif %}>
-                                            {% if user.is_locked %}Unlock Required{% else %}Reserve Static Slot Assignment{% endif %}
-                                        </button>
-                                    {% endif %}
-                                </form>
+            <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
+                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">📋 System Balance Audit Log</h3>
+                <div class="divide-y divide-zinc-100 max-h-56 overflow-y-auto pr-1">
+                    {% for receipt in receipts %}
+                        <div class="py-3 flex justify-between items-center text-xs">
+                            <div>
+                                <p class="text-zinc-800 font-medium">{{ receipt.description }}</p>
+                                <p class="text-[10px] text-zinc-400 mt-0.5">Actor: {{ receipt.user_name }} | {{ receipt.timestamp.strftime('%Y-%m-%d %I:%M %p') }}</p>
                             </div>
-                        {% endfor %}
-                    {% endif %}
+                            <span class="font-mono font-bold text-xs {% if receipt.minutes_changed < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                                {% if receipt.minutes_changed > 0 %}+{% endif %}{{ receipt.minutes_changed|format_time }}
+                            </span>
+                        </div>
+                    {% else %}
+                        <p class="text-xs text-zinc-400 italic pt-2">No historical transaction ledgers found.</p>
+                    {% endfor %}
                 </div>
             </div>
 
         </div>
-
-        <!-- Right Column: Feeds & Peripheral Logs -->
-        <div class="side-column">
-            
-            <!-- Section: System Broadcast / Notifications Feed -->
-            <div class="section-block">
-                <h2 class="section-title">System Broadcast Notifications</h2>
-                <div class="notif-feed">
-                    {% if not notifications %}
-                        <p style="color: var(--text-light); font-size: 0.85rem;">No recent broadcast logs.</p>
-                    {% else %}
-                        {% for n in notifications %}
-                            <div class="notif-item">
-                                <div class="notif-text">{{ n.message }}</div>
-                                <div class="notif-time">{{ n.timestamp.strftime('%b %d, %Y - %I:%M %p') }}</div>
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Section: Active Network Clearances List -->
-            <div class="section-block">
-                <h2 class="section-title">Active Platform Bookings</h2>
-                <div class="notif-feed">
-                    {% if not all_approved %}
-                        <p style="color: var(--text-light); font-size: 0.85rem;">No synchronized schedules active at this timeframe.</p>
-                    {% else %}
-                        {% for tslot, tuser in all_approved %}
-                            <div class="notif-item" style="border-left: 2px solid var(--success); padding-left: 8px; margin-bottom: 4px;">
-                                <div class="notif-text"><strong>{{ tuser.name }}</strong></div>
-                                <div class="notif-time" style="color: var(--text);">
-                                    {{ tslot.date }} @ {{ tslot.start_time|ampm }}
-                                </div>
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                </div>
-            </div>
-
-        </div>
-    </div>
-
-    <!-- Full-Width Bottom Block: Balance Receipt History Engine Ledger -->
-    <div class="section-block" style="margin-top: 1rem;">
-        <h2 class="section-title">System Transaction Allocation Log Ledger</h2>
-        <div class="table-wrapper">
-            {% if not receipts %}
-                <p style="color: var(--text-light); font-size: 0.95rem; padding: 1rem 0;">No chronological adjustment entries found inside transaction logs.</p>
-            {% else %}
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Execution Timestamp</th>
-                            <th>Entity / Assignee</th>
-                            <th>Operation Description Protocol</th>
-                            <th>Balance Impact</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for r in receipts %}
-                            <tr>
-                                <td style="color: var(--text-light);">{{ r.timestamp.strftime('%Y-%m-%d %I:%M %p') }}</td>
-                                <td><strong>{{ r.user_name }}</strong></td>
-                                <td>{{ r.description }}</td>
-                                <td style="font-weight: 700; color: {% if r.minutes_changed < 0 %}var(--danger){% else %}var(--success){% endif %};">
-                                    {{ r.minutes_changed|format_time }}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% endif %}
-        </div>
-    </div>
-
-</div>
-
+    </main>
 </body>
 </html>
