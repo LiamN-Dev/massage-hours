@@ -5,6 +5,7 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = "massage_debt_secret_key_0831"
+app.config['SESSION_PERMANENT'] = False
 
 DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///massages.db')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
@@ -21,7 +22,8 @@ class User(db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(50), nullable=False) 
     name = db.Column(db.String(50), nullable=False)
-    role = db.Column(db.String(20), default='user')     
+    role = db.Column(db.String(20), default='user')
+    is_locked = db.Column(db.Boolean, default=False) # Restored missing column
 
 class GlobalPool(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -64,7 +66,6 @@ def format_minutes(total_minutes):
     return f"{sign}{hours}h {minutes}m"
 
 def format_ampm(time_str):
-    """Converts standard database 24-hour time values (HH:MM) to clean 12-hour AM/PM presentation formats."""
     if not time_str:
         return ""
     try:
@@ -120,7 +121,6 @@ def dashboard():
         
     user = User.query.get(session['user_id'])
     
-    # SAFETY CHECK: If the database was reset but the user still has an old browser cookie
     if not user:
         session.clear()
         flash('Your session has expired. Please log in again.')
@@ -147,6 +147,11 @@ def book_slot(slot_id):
     if 'user_id' not in session or session['role'] != 'user':
         return redirect('/login')
         
+    user = User.query.get(session['user_id'])
+    if user.is_locked:
+        flash('Booking rejected. Your profile is locked pending active operation approvals.')
+        return redirect('/dashboard')
+        
     slot = TimeSlot.query.get_or_404(slot_id)
     if slot.status != 'available':
         flash('Slot already locked.')
@@ -162,6 +167,7 @@ def book_slot(slot_id):
     else:
         slot.requested_duration = slot.duration_minutes
         
+    user.is_locked = True
     db.session.commit()
     flash('Booking request route dispatched to admin panel.')
     return redirect('/dashboard')
@@ -171,9 +177,11 @@ def request_refund(slot_id):
     if 'user_id' not in session or session['role'] != 'user':
         return redirect('/login')
         
+    user = User.query.get(session['user_id'])
     slot = TimeSlot.query.get_or_404(slot_id)
     if slot.claimed_by == session['user_id'] and slot.status == 'approved':
         slot.status = 'refund_requested'
+        user.is_locked = True
         db.session.commit()
         flash('Cancellation filed for review.')
     return redirect('/dashboard')
@@ -189,16 +197,17 @@ def admin_dashboard():
     users = User.query.filter_by(role='user').all()
     pending_slots = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'pending').all()
     refund_requests = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'refund_requested').all()
-    all_slots = TimeSlot.query.all()
+    
+    # Restored correct outerjoin query to prevent looping crashes
+    all_slots = db.session.query(TimeSlot, User).outerjoin(User, TimeSlot.claimed_by == User.id).all()
     
     return render_template('admin.html', pool=pool, users=users, pending_slots=pending_slots, refund_requests=refund_requests, all_slots=all_slots)
 
 @app.route('/admin/create-slot', methods=['POST'])
 def create_slot():
-    if 'user_id' not in session or session['role'] != 'admin': 
-        abort(403)
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
         
-    slot_type = request.form.get('slot_type')  # Matches 'specific' or 'window'
+    slot_type = request.form.get('slot_type')
     date = request.form.get('date')
     start_time = request.form.get('start_time')
     
@@ -209,20 +218,106 @@ def create_slot():
         status='available'
     )
     
-    # Isolate parameters based on template conditional options
     if slot_type == 'specific':
-        hours = int(request.form.get('hours') or 0)
-        minutes = int(request.form.get('minutes') or 0)
+        # Restored correct form mapping names
+        hours = int(request.form.get('spec_hours') or 0)
+        minutes = int(request.form.get('spec_mins') or 0)
         new_slot.duration_minutes = (hours * 60) + minutes
-        new_slot.end_time = None
+        new_slot.end_time = minutes_to_time(time_to_minutes(start_time) + new_slot.duration_minutes)
     else:
         new_slot.end_time = request.form.get('end_time')
         new_slot.duration_minutes = None
         
     db.session.add(new_slot)
     db.session.commit()
-    
     flash('New operational time slot successfully initialized.')
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/decide-slot/<int:slot_id>/<string:action>', methods=['POST'])
+def decide_slot(slot_id, action):
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+        
+    slot = TimeSlot.query.get_or_404(slot_id)
+    admin_message = request.form.get('admin_message', '').strip()
+    user = User.query.get(slot.claimed_by)
+    
+    if action == 'approve':
+        slot.status = 'approved'
+        pool = GlobalPool.query.first()
+        
+        if pool and slot.requested_duration:
+            pool.balance_minutes -= slot.requested_duration
+            receipt = Receipt(
+                user_id=user.id,
+                user_name=user.name,
+                description=f"Confirmed Booking: {slot.date} @ {slot.start_time}",
+                minutes_changed=-slot.requested_duration
+            )
+            db.session.add(receipt)
+            
+        if user:
+            user.is_locked = True
+            
+        notif = Notification(user_id=user.id, is_global=False, message=f"Your booking for {slot.date} has been APPROVED. {admin_message}")
+        db.session.add(notif)
+        flash('Booking validated successfully.')
+        
+    elif action == 'deny':
+        if user:
+            user.is_locked = False
+            
+        notif = Notification(user_id=user.id, is_global=False, message=f"Your booking request for {slot.date} was declined. {admin_message}")
+        db.session.add(notif)
+        
+        slot.status = 'available'
+        slot.claimed_by = None
+        slot.requested_duration = None
+        flash('Booking request declined and slot safely reclaimed.')
+        
+    db.session.commit()
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/decide-refund/<int:slot_id>/<string:action>', methods=['POST'])
+def decide_refund(slot_id, action):
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+        
+    slot = TimeSlot.query.get_or_404(slot_id)
+    admin_message = request.form.get('admin_message', '').strip()
+    user = User.query.get(slot.claimed_by)
+    
+    if action == 'approve':
+        pool = GlobalPool.query.first()
+        if pool and slot.requested_duration:
+            pool.balance_minutes += slot.requested_duration
+            receipt = Receipt(
+                user_id=user.id,
+                user_name=user.name,
+                description=f"Cancellation Approved: Returned hours for {slot.date}",
+                minutes_changed=slot.requested_duration
+            )
+            db.session.add(receipt)
+            
+        if user:
+            user.is_locked = False
+            
+        notif = Notification(user_id=user.id, is_global=False, message=f"Cancellation complete. Time restored. {admin_message}")
+        db.session.add(notif)
+        
+        slot.status = 'available'
+        slot.claimed_by = None
+        slot.requested_duration = None
+        flash('Cancellation evaluated and balances restored.')
+        
+    elif action == 'deny':
+        if user:
+            user.is_locked = True
+            
+        slot.status = 'approved'
+        notif = Notification(user_id=user.id, is_global=False, message=f"Cancellation request declined. {admin_message}")
+        db.session.add(notif)
+        flash('Cancellation request declined.')
+        
+    db.session.commit()
     return redirect('/secret-portal-0831')
 
 @app.route('/admin/update-balance', methods=['POST'])
@@ -250,6 +345,45 @@ def update_balance():
     db.session.commit()
     return redirect('/secret-portal-0831')
 
+@app.route('/admin/create-user', methods=['POST'])
+def create_user():
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    username = request.form.get('username').strip().lower()
+    password = request.form.get('password').strip()
+    name = request.form.get('name').strip()
+    
+    if User.query.filter_by(username=username).first():
+        flash('Error: Profile identifier already taken.')
+        return redirect('/secret-portal-0831')
+        
+    new_user = User(username=username, password=password, name=name, role='user', is_locked=False)
+    db.session.add(new_user)
+    db.session.commit()
+    flash(f'New profile deployed successfully for {name}.')
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/unlock-user/<int:user_id>', methods=['POST'])
+def unlock_user(user_id):
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    user = User.query.get_or_404(user_id)
+    user.is_locked = False
+    db.session.commit()
+    flash(f'Account restrictions manually removed for user: {user.name}.')
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/change-password', methods=['POST'])
+def change_password():
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    target_user_id = int(request.form.get('user_id'))
+    new_password = request.form.get('new_password').strip()
+    
+    user = User.query.get(target_user_id)
+    if user:
+        user.password = new_password
+        db.session.commit()
+        flash(f'Access codes modified for user: {user.name}.')
+    return redirect('/secret-portal-0831')
+
 @app.route('/admin/send-notification', methods=['POST'])
 def send_notification():
     if 'user_id' not in session or session['role'] != 'admin': abort(403)
@@ -270,6 +404,15 @@ def send_notification():
     db.session.commit()
     return redirect('/secret-portal-0831')
 
+@app.route('/admin/delete-slot/<int:slot_id>', methods=['POST'])
+def delete_slot(slot_id):
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    slot = TimeSlot.query.get_or_404(slot_id)
+    db.session.delete(slot)
+    db.session.commit()
+    flash('Timeline item safely removed from records.')
+    return redirect('/secret-portal-0831')
+
 # --- RENDER DEPLOYMENT CLI COMMANDS ---
 
 @app.cli.command("init-db")
@@ -278,6 +421,10 @@ def init_db():
     db.create_all()
     if not GlobalPool.query.first():
         db.session.add(GlobalPool(balance_minutes=1800))
+    if not User.query.filter_by(username='gretta').first():
+        db.session.add(User(username='gretta', password='iLOVEpeter10!', name='Gretta', role='user', is_locked=False))
+    if not User.query.filter_by(username='peter').first():
+        db.session.add(User(username='peter', password='2887', name='Peter', role='user', is_locked=False))
     db.session.commit()
     print("Production database components initialized.")
 
@@ -286,5 +433,9 @@ if __name__ == '__main__':
         db.create_all()
         if not GlobalPool.query.first():
             db.session.add(GlobalPool(balance_minutes=1800))
+        if not User.query.filter_by(username='gretta').first():
+            db.session.add(User(username='gretta', password='iLOVEpeter10!', name='Gretta', role='user', is_locked=False))
+        if not User.query.filter_by(username='peter').first():
+            db.session.add(User(username='peter', password='2887', name='Peter', role='user', is_locked=False))
         db.session.commit()
     app.run(debug=True)
