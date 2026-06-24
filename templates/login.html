@@ -3,19 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sovereign Sign-In</title>
+    <title>Account Login</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-premium { animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100 flex items-center justify-center min-h-screen antialiased selection:bg-indigo-500/30">
-    <div class="w-full max-w-sm p-8 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl relative overflow-hidden">
-        <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-indigo-500 to-transparent"></div>
+<body class="bg-slate-50 text-slate-800 flex items-center justify-center min-h-screen antialiased">
+    <div class="w-full max-w-sm p-8 bg-white border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-100 relative animate-premium">
+        <div class="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-slate-200 via-slate-400 to-slate-200"></div>
         
-        <h1 class="text-xl font-bold tracking-tight text-white mb-1">Massage Ledger Matrix</h1>
-        <p class="text-xs text-zinc-400 mb-6">Enter access keys to review or modify balances.</p>
+        <h1 class="text-xl font-semibold tracking-tight text-slate-900 mb-1">Premium Services</h1>
+        <p class="text-xs text-slate-400 mb-6">Enter access keys to access your scheduling dashboard.</p>
 
         {% with messages = get_flashed_messages() %}
           {% if messages %}
-            <div class="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-3 rounded-xl text-xs mb-4">
+            <div class="bg-amber-50 border border-amber-200 text-amber-700 p-3 rounded-xl text-xs mb-4">
                 {{ messages[0] }}
             </div>
           {% endif %}
@@ -23,18 +30,18 @@
 
         <form action="/login" method="POST" class="space-y-4">
             <div>
-                <label class="block text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1.5">User Handle</label>
+                <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">User Handle</label>
                 <input type="text" name="username" required autocomplete="off"
-                       class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors">
+                       class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-slate-400 focus:bg-white transition-all duration-300">
             </div>
             <div>
-                <label class="block text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-1.5">Secret Pin</label>
+                <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Secret Pin</label>
                 <input type="password" name="password" required
-                       class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors">
+                       class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-slate-400 focus:bg-white transition-all duration-300">
             </div>
             <button type="submit" 
-                    class="w-full bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-semibold py-3 rounded-xl transition-all shadow-lg shadow-white/5 cursor-pointer">
-                Establish Session
+                    class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium text-xs py-3 rounded-xl tracking-wider uppercase shadow-md hover:shadow-lg transform active:scale-[0.99] transition-all duration-200 cursor-pointer mt-2">
+                Verify Credentials
             </button>
         </form>
     </div>
