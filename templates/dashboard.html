@@ -7,37 +7,70 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
+        
+        /* Custom Keyframes for Fluid Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Staggered animation classes */
+        .animate-fade-in {
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .animate-fade-in-up {
+            opacity: 0;
+            animation: fadeInUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
     </style>
 </head>
-<body class="bg-[#fcfcfd] text-zinc-800 min-h-screen antialiased selection:bg-neutral-200">
+<body class="bg-[#fcfcfd] text-zinc-800 min-h-screen antialiased selection:bg-neutral-200 animate-fade-in">
     
     <nav class="max-w-6xl mx-auto px-6 py-6 flex justify-between items-center border-b border-zinc-100">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 group">
             <div class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span class="text-xs font-semibold tracking-wider uppercase text-zinc-400">{{ user.name }} Node</span>
+            <span class="text-xs font-semibold tracking-wider uppercase text-zinc-400 group-hover:text-zinc-900 transition-colors duration-300">{{ user.name }} Node</span>
         </div>
-        <a href="/logout" class="text-xs font-medium text-zinc-400 hover:text-zinc-900 transition-colors">Terminate Session</a>
+        <a href="/logout" class="text-xs font-medium text-zinc-400 hover:text-rose-600 transition-colors duration-300">Terminate Session</a>
     </nav>
 
     <main class="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        <div class="space-y-6">
-            <div class="bg-zinc-900 text-white p-8 rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[180px]">
-                <div class="absolute -right-10 -bottom-10 h-32 w-32 bg-indigo-500/10 blur-3xl rounded-full"></div>
+        <div class="space-y-6 animate-fade-in-up">
+            
+            <div class="bg-zinc-900 text-white p-8 rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[180px] hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 group">
+                <div class="absolute -right-10 -bottom-10 h-32 w-32 bg-indigo-500/10 blur-3xl rounded-full group-hover:bg-indigo-500/20 transition-all duration-500"></div>
                 <div>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-md">
+                    <span class="inline-block text-[10px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-md">
                         Shared Family Balance Pool
                     </span>
-                    <h2 class="text-5xl font-light tracking-tight mt-6 text-white">{{ pool.balance_minutes|format_time }}</h2>
+                    <h2 class="text-5xl font-light tracking-tight mt-6 text-white group-hover:scale-102 transition-transform duration-500 origin-left">{{ pool.balance_minutes|format_time }}</h2>
                 </div>
                 <p class="text-xs text-zinc-400 mt-4 border-t border-zinc-800 pt-3">Combined credit resource for Mom & Dad.</p>
             </div>
 
-            <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
-                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">📢 System Notifications</h3>
+            <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs hover:shadow-md transition-shadow duration-300">
+                <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4 flex items-center gap-2">
+                    <span class="animate-bounce">📢</span> System Notifications
+                </h3>
                 <div class="space-y-3 max-h-64 overflow-y-auto pr-1">
                     {% for notif in notifications %}
-                        <div class="p-3.5 bg-zinc-50 border border-zinc-100 rounded-xl text-xs">
+                        <div class="p-3.5 bg-zinc-50 border border-zinc-100 rounded-xl text-xs hover:bg-zinc-100/50 transition-colors duration-200">
                             <p class="text-zinc-600 leading-relaxed">{{ notif.message }}</p>
                             <span class="text-[10px] text-zinc-400 mt-2 block font-mono">{{ notif.timestamp.strftime('%m/%d - %I:%M %p') }}</span>
                         </div>
@@ -48,10 +81,11 @@
             </div>
         </div>
 
-        <div class="lg:col-span-2 space-y-6">
+        <div class="lg:col-span-2 space-y-6 animate-fade-in-up delay-100">
+            
             {% with messages = get_flashed_messages() %}
               {% if messages %}
-                <div class="bg-zinc-900 text-zinc-100 p-4 rounded-xl text-xs font-medium border border-zinc-800">
+                <div class="bg-zinc-900 text-zinc-100 p-4 rounded-xl text-xs font-medium border border-zinc-800 animate-pulse">
                     {{ messages[0] }}
                 </div>
               {% endif %}
@@ -61,7 +95,7 @@
                 <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">🔓 Claim Openings</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {% for slot in available_slots %}
-                        <div class="p-5 border border-zinc-200/80 rounded-xl bg-zinc-50/40 flex flex-col justify-between">
+                        <div class="p-5 border border-zinc-200/80 rounded-xl bg-zinc-50/40 flex flex-col justify-between hover:border-zinc-400 hover:bg-white transition-all duration-300 hover:shadow-xs group">
                             <div>
                                 <span class="inline-block text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded border
                                     {% if slot.slot_type == 'specific' %}bg-amber-50 text-amber-700 border-amber-200{% else %}bg-sky-50 text-sky-700 border-sky-200{% endif %}">
@@ -81,11 +115,11 @@
                                 {% if slot.slot_type == 'window' %}
                                     <div class="flex gap-2 items-center mb-3">
                                         <span class="text-xs text-zinc-400">Duration Target:</span>
-                                        <input type="number" name="hours" min="0" max="4" placeholder="H" required class="w-11 p-1 text-center bg-white border border-zinc-200 text-xs rounded-md">
-                                        <input type="number" name="minutes" min="0" max="59" step="5" placeholder="M" required class="w-11 p-1 text-center bg-white border border-zinc-200 text-xs rounded-md">
+                                        <input type="number" name="hours" min="0" max="4" placeholder="H" required class="w-11 p-1 text-center bg-white border border-zinc-200 text-xs rounded-md focus:outline-none focus:border-zinc-900 transition-colors">
+                                        <input type="number" name="minutes" min="0" max="59" step="5" placeholder="M" required class="w-11 p-1 text-center bg-white border border-zinc-200 text-xs rounded-md focus:outline-none focus:border-zinc-900 transition-colors">
                                     </div>
                                 {% endif %}
-                                <button type="submit" class="w-full bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold py-2.5 rounded-xl transition-colors cursor-pointer shadow-xs">
+                                <button type="submit" class="w-full bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold py-2.5 rounded-xl transition-all duration-200 cursor-pointer shadow-xs active:scale-[0.98]">
                                     Lock Appointment Request
                                 </button>
                             </form>
@@ -110,12 +144,12 @@
                         </thead>
                         <tbody class="divide-y divide-zinc-50">
                             {% for slot, recipient in all_approved %}
-                                <tr class="text-zinc-600 hover:bg-zinc-50/50 transition-colors">
+                                <tr class="text-zinc-600 hover:bg-zinc-50/80 transition-colors duration-150">
                                     <td class="py-3.5 font-medium text-zinc-900">{{ slot.date }}</td>
-                                    <td class="py-3.5">{{ slot.start_time|ampm }}</td>
+                                    <td class="py-3.5 text-zinc-900 font-medium">{{ slot.start_time|ampm }}</td>
                                     <td class="py-3.5">{{ slot.requested_duration|format_time }}</td>
                                     <td class="py-3.5 text-right">
-                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-neutral-100 text-neutral-800 border border-neutral-200/40">
+                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-neutral-100 text-neutral-800 border border-neutral-200/40 shadow-2xs">
                                             {{ recipient.name }}
                                         </span>
                                     </td>
@@ -134,7 +168,7 @@
                 <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">🔄 Your Dispatched Actions</h3>
                 <div class="space-y-2">
                     {% for appointment in my_appointments %}
-                        <div class="p-4 border border-zinc-100 rounded-xl flex justify-between items-center text-xs bg-zinc-50/30">
+                        <div class="p-4 border border-zinc-100 rounded-xl flex justify-between items-center text-xs bg-zinc-50/30 hover:bg-white hover:border-zinc-200 transition-all duration-200">
                             <div>
                                 <p class="font-semibold text-zinc-900">{{ appointment.date }} @ {{ appointment.start_time|ampm }}</p>
                                 <p class="text-[11px] text-zinc-400 mt-0.5">Value Block: {{ appointment.requested_duration|format_time }}</p>
@@ -149,7 +183,7 @@
                                 
                                 {% if appointment.status == 'approved' %}
                                     <form action="/request-refund/{{ appointment.id }}" method="POST">
-                                        <button type="submit" class="text-[11px] text-rose-600 hover:bg-rose-50 border border-rose-100 px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer">
+                                        <button type="submit" class="text-[11px] text-rose-600 hover:bg-rose-50 border border-rose-100 px-2.5 py-1 rounded-lg font-medium transition-all duration-200 cursor-pointer active:scale-95">
                                             Request Cancellation
                                         </button>
                                     </form>
@@ -162,11 +196,11 @@
                 </div>
             </div>
 
-            <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs">
+            <div class="bg-white border border-zinc-200/60 p-6 rounded-2xl shadow-xs animate-fade-in-up delay-200">
                 <h3 class="text-xs font-bold tracking-widest uppercase text-zinc-400 mb-4">📋 System Balance Audit Log</h3>
                 <div class="divide-y divide-zinc-100 max-h-56 overflow-y-auto pr-1">
                     {% for receipt in receipts %}
-                        <div class="py-3 flex justify-between items-center text-xs">
+                        <div class="py-3 flex justify-between items-center text-xs hover:bg-zinc-50/50 px-1 rounded-lg transition-colors duration-150">
                             <div>
                                 <p class="text-zinc-800 font-medium">{{ receipt.description }}</p>
                                 <p class="text-[10px] text-zinc-400 mt-0.5">Actor: {{ receipt.user_name }} | {{ receipt.timestamp.strftime('%Y-%m-%d %I:%M %p') }}</p>
