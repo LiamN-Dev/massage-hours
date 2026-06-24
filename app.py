@@ -349,6 +349,21 @@ def decide_refund(slot_id, action):
     db.session.commit()
     return redirect('/secret-portal-0831')
 
+# --- RENDER DEPLOYMENT CLI COMMANDS ---
+
+@app.cli.command('init-db')
+def init_db_command():
+    """Initializes the database tables and seeds default profiles on production."""
+    db.create_all()
+    if not GlobalPool.query.first():
+        db.session.add(GlobalPool(balance_minutes=1800))
+    if not User.query.filter_by(username='gretta').first():
+        db.session.add(User(username='gretta', password='iLOVEpeter10!', name='Gretta', role='user'))
+    if not User.query.filter_by(username='peter').first():
+        db.session.add(User(username='peter', password='2887', name='Peter', role='user'))
+    db.session.commit()
+    print("Database initialized and seeded successfully!")
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
