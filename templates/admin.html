@@ -3,292 +3,274 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Matrix Core Admin</title>
+    <title>Management Suite</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
-        body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        body { font-family: system-ui, -apple-system, sans-serif; }
+        .lux-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.01);
+        }
     </style>
 </head>
-<body class="bg-zinc-950 min-h-screen text-zinc-300 antialiased selection:bg-indigo-500/20">
+<body class="bg-slate-50 text-slate-800 min-h-screen antialiased">
     
-    <nav class="bg-zinc-900/40 backdrop-blur-md border-b border-zinc-800/80 py-4 px-8 flex justify-between items-center sticky top-0 z-50">
+    <nav class="bg-white border-b border-slate-200 py-4 px-8 flex justify-between items-center sticky top-0 z-50 shadow-xs">
         <div class="flex items-center gap-3">
-            <div class="h-2 w-2 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/50"></div>
-            <h1 class="text-sm font-bold tracking-widest text-white uppercase">SYSTEM ENGINE CORE</h1>
+            <div class="h-2.5 w-2.5 rounded-full bg-slate-700 animate-pulse"></div>
+            <h1 class="text-xs font-bold tracking-widest text-slate-900 uppercase">Management Control Suite</h1>
         </div>
-        <a href="/logout" class="text-xs text-zinc-500 hover:text-white transition-colors border border-zinc-800 px-3 py-1.5 rounded-lg bg-zinc-950">Close Terminal</a>
+        <a href="/logout" class="text-xs text-slate-400 hover:text-slate-900 transition-colors border border-slate-200 px-4 py-2 rounded-xl bg-slate-50">Sign Out</a>
     </nav>
 
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <div class="max-w-7xl mx-auto mx-4 mt-6 p-3.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs rounded-xl font-medium">
-            {{ messages[0] }}
-        </div>
-      {% endif %}
-    {% endwith %}
-
-    <main class="max-w-7xl mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <main class="max-w-7xl mx-auto p-6 space-y-8">
         
-        <div class="space-y-6">
-            
-            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl relative overflow-hidden">
-                <div class="absolute top-0 left-0 right-0 h-[1px] bg-indigo-500/20"></div>
-                <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Pool Core Configuration</h3>
-                <div class="text-3xl font-light text-white tracking-tight mb-4 font-sans">{{ pool.balance_minutes|format_time }}</div>
-                
-                <form action="/admin/update-balance" method="POST" class="space-y-4 text-xs pt-4 border-t border-zinc-800/60">
-                    <div>
-                        <label class="block text-zinc-500 mb-1.5 uppercase tracking-wider text-[10px]">Adjustment Action</label>
-                        <select name="mode" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500">
-                            <option value="set">SET POOL EXACTLY TO VALUE</option>
-                            <option value="add">ADD ADDITIONAL HOURS TO POOL</option>
-                            <option value="subtract">DEDUCT HOURS FROM POOL</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-zinc-500 mb-1.5 uppercase tracking-wider text-[10px]">Time Metrics</label>
-                        <div class="flex gap-2">
-                            <input type="number" name="hours" min="0" placeholder="Hours" class="w-1/2 bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500">
-                            <input type="number" name="minutes" min="0" max="59" placeholder="Mins" class="w-1/2 bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500">
-                        </div>
-                    </div>
-                    <button type="submit" class="w-full bg-white hover:bg-zinc-200 text-zinc-950 font-bold py-2.5 rounded-xl transition-all cursor-pointer">
-                        Execute Balance Shift
-                    </button>
-                </form>
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}\
+            <div class="bg-slate-800 text-white px-4 py-3 rounded-xl text-xs font-medium shadow-md">
+                {{ messages[0] }}
             </div>
+          {% endif %}
+        {% endwith %}
 
-            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="lux-card p-6 bg-gradient-to-br from-slate-800 to-slate-900 text-white flex flex-col justify-between">
                 <div>
-                    <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">User Management Directory</h3>
-                    <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
-                        {% for u in users %}
-                            <div class="p-2 bg-zinc-950 border border-zinc-800/80 rounded-xl text-xs flex justify-between items-center">
-                                <div>
-                                    <p class="font-bold text-white font-sans">{{ u.name }}</p>
-                                    <p class="text-[10px] text-zinc-500 font-mono">ID: {{ u.username }} | Pin: {{ u.password }}</p>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
+                    <span class="text-[10px] tracking-widest uppercase text-slate-400 font-bold">Allocated Pool Allocation</span>
+                    <h3 class="text-3xl font-extrabold tracking-tight mt-1">{{ pool.balance_minutes|format_time }}</h3>
                 </div>
-
-                <div class="border-t border-zinc-800/60 pt-4">
-                    <h4 class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Reset Password Pin</h4>
-                    <form action="/admin/change-password" method="POST" class="space-y-3 text-xs">
-                        <select name="user_id" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-white focus:outline-none">
-                            <option value="" disabled selected>Select User Target...</option>
-                            {% for u in users %}
-                                <option value="{{ u.id }}">{{ u.name }} ({{ u.username }})</option>
-                            {% endfor %}
-                        </select>
-                        <input type="text" name="new_password" placeholder="Enter new password pin..." required
-                               class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-white focus:outline-none">
-                        <button type="submit" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-2 rounded-xl transition-colors cursor-pointer">
-                            Modify Credentials
-                        </button>
-                    </form>
-                </div>
-
-                <div class="border-t border-zinc-800/60 pt-4">
-                    <h4 class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Create New User Profile</h4>
-                    <form action="/admin/create-user" method="POST" class="space-y-3 text-xs">
-                        <input type="text" name="name" placeholder="Display Name (e.g. Liam)" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-white focus:outline-none">
-                        <input type="text" name="username" placeholder="Username Handle" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-white focus:outline-none">
-                        <input type="text" name="password" placeholder="Initial Secret Pin" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-white focus:outline-none">
-                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 rounded-xl transition-colors cursor-pointer">
-                            Register Member Node
-                        </button>
-                    </form>
-                </div>
+                <p class="text-[11px] text-slate-400 mt-4 leading-relaxed">Global remaining timeline balance currently designated across client operations pools.</p>
             </div>
 
-            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
-                <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4">Dispatch Center</h3>
-                <form action="/admin/send-notification" method="POST" class="space-y-4 text-xs">
-                    <div>
-                        <label class="block text-zinc-500 mb-1.5 uppercase tracking-wider text-[10px]">Target Routing Node</label>
-                        <select name="target" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none">
-                            <option value="global">GLOBAL BROADCAST (ALL NODES)</option>
-                            {% for u in users %}
-                                <option value="{{ u.id }}">PER USER: {{ u.name | upper }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-zinc-500 mb-1.5 uppercase tracking-wider text-[10px]">Message Content String</label>
-                        <textarea name="message" rows="3" placeholder="Type transmission payload..." required
-                                  class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-indigo-500 font-sans"></textarea>
-                    </div>
-                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl transition-colors cursor-pointer">
-                        Broadcast Payload
-                    </button>
-                </form>
-            </div>
-
-            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
-                <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4">Initialize Availability</h3>
-                <form action="/admin/create-slot" method="POST" class="space-y-4 text-xs">
-                    <div>
-                        <label class="block text-zinc-500 mb-1.5 uppercase tracking-wider text-[10px]">Slot Architecture</label>
-                        <select name="slot_type" id="slot_type_select" onchange="toggleFormInputs()"
-                                class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none">
-                            <option value="specific">FIXED BLOCK (E.G. EXACT SPECIFIED DURATION)</option>
-                            <option value="window">OPEN WINDOW FRAME (USER SPECIALLY REQUESTS SIZE)</option>
-                        </select>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
+            <div class="lux-card p-6 bg-white col-span-2">
+                <span class="text-[10px] tracking-widest uppercase text-slate-400 font-bold block mb-3">Adjust Global Allocation Balance</span>
+                <form action="/admin/update-balance" method="POST" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
-                            <label class="block text-zinc-500 mb-1.5 uppercase tracking-wider text-[10px]">Date</label>
-                            <input type="date" name="date" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-white">
+                            <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Execution Mode</label>
+                            <select name="mode" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
+                                <option value="add">Add Hours</option>
+                                <option value="subtract">Subtract Hours</option>
+                                <option value="set">Set Absolute Balance</option>
+                            </select>
                         </div>
                         <div>
-                            <label class="block text-zinc-500 mb-1.5 uppercase tracking-wider text-[10px]">Start Time</label>
-                            <input type="time" name="start_time" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-white">
+                            <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Hours</label>
+                            <input type="number" name="hours" min="0" placeholder="0" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Minutes</label>
+                            <input type="number" name="minutes" min="0" max="59" placeholder="0" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
                         </div>
                     </div>
-                    
-                    <div id="specific_inputs">
-                        <label class="block text-zinc-500 mb-1.5 uppercase tracking-wider text-[10px]">Assigned Window Length</label>
-                        <div class="flex gap-2">
-                            <input type="number" name="spec_hours" placeholder="Hours" class="w-1/2 bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-white">
-                            <input type="number" name="spec_mins" placeholder="Mins" class="w-1/2 bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-white">
-                        </div>
-                    </div>
-
-                    <div id="window_inputs" class="hidden">
-                        <label class="block text-zinc-500 mb-1.5 uppercase tracking-wider text-[10px]">Window Limit Exit</label>
-                        <input type="time" name="end_time" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-white">
-                    </div>
-
-                    <button type="submit" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-2.5 rounded-xl transition-colors cursor-pointer">
-                        Deploy Matrix Block
+                    <button type="submit" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer">
+                        Execute Configuration Change
                     </button>
                 </form>
             </div>
         </div>
 
-        <div class="lg:col-span-2 space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
-            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
-                <h3 class="text-xs font-bold tracking-widest text-white uppercase mb-4">📥 Input Queue: Appointment Filings</h3>
-                <div class="space-y-4">
+            <div class="lux-card p-6 bg-white space-y-4">
+                <h3 class="text-xs font-bold tracking-widest uppercase text-slate-400">📥 Pending Reservations Pending Review</h3>
+                <div class="space-y-4 max-h-[420px] overflow-y-auto pr-1">
                     {% for slot, user in pending_slots %}
-                        <div class="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-4">
+                        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <span class="text-[10px] font-bold text-amber-400 bg-amber-400/5 border border-amber-400/20 px-2 py-0.5 rounded">PENDING EVALUATION</span>
-                                    <h4 class="font-bold text-white text-sm mt-2 font-sans">{{ user.name }}</h4>
-                                    
-                                    <div class="mt-2 space-y-1 text-xs border-l-2 border-indigo-500/40 pl-2.5">
-                                        <p class="text-zinc-300">Target Date: <strong class="text-white font-mono">{{ slot.date }}</strong></p>
-                                        <p class="text-zinc-300">Start Time: <strong class="text-indigo-400 font-mono">{{ slot.start_time|ampm }}</strong></p>
-                                        <p class="text-zinc-300">Block Architecture: <span class="uppercase font-mono text-[11px] text-zinc-400">{{ slot.slot_type }}</span></p>
-                                        <p class="text-zinc-200 font-medium">Requested Duration: <strong class="text-emerald-400 font-mono">{{ slot.requested_duration|format_time }}</strong></p>
-                                    </div>
+                                    <h4 class="text-xs font-bold text-slate-900">{{ user.name }} <span class="text-slate-400 font-normal">(@{{ user.username }})</span></h4>
+                                    <p class="text-[11px] text-slate-500 mt-0.5">Target Date: <span class="font-medium text-slate-800">{{ slot.date }}</span></p>
                                 </div>
+                                <span class="text-[10px] font-bold px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg">
+                                    {{ slot.requested_duration|format_time if slot.requested_duration else "Fixed" }}
+                                </span>
+                            </div>
+                            <div class="text-[11px] text-slate-500">Requested Frame: <span class="font-medium text-slate-800">{{ slot.start_time|ampm }}</span></div>
+                            
+                            <form method="POST" class="space-y-2 pt-2 border-t border-slate-200/60">
+                                <input type="text" name="admin_message" placeholder="Add optional status update note here..." class="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none">
+                                <div class="flex gap-2">
+                                    <button type="submit" onclick="this.form.action='/admin/decide-slot/{{ slot.id }}/approve'" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 rounded-xl cursor-pointer shadow-xs">
+                                        Approve & Allocate
+                                    </button>
+                                    <button type="submit" onclick="this.form.action='/admin/decide-slot/{{ slot.id }}/deny'" class="bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 text-xs font-bold px-4 py-2 rounded-xl cursor-pointer">
+                                        Decline
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    {% else %}
+                        <p class="text-xs text-slate-400 italic py-2">No active pending reservation pipeline items loaded.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="lux-card p-6 bg-white space-y-4">
+                <h3 class="text-xs font-bold tracking-widest uppercase text-slate-400">📤 Active Cancellation Requests</h3>
+                <div class="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+                    {% for slot, user in refund_requests %}
+                        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h4 class="text-xs font-bold text-slate-900">{{ user.name }}</h4>
+                                    <p class="text-[11px] text-slate-500 mt-0.5">Assigned Target Frame: {{ slot.date }} @ {{ slot.start_time|ampm }}</p>
+                                </div>
+                                <span class="text-[10px] font-bold px-2.5 py-1 bg-slate-800 text-white rounded-lg">
+                                    +{{ slot.requested_duration|format_time if slot.requested_duration else "Fixed" }}
+                                </span>
                             </div>
                             
-                            <form action="" method="POST" class="pt-3 border-t border-zinc-900 flex flex-col sm:flex-row gap-2 items-center">
-                                <input type="text" name="admin_message" placeholder="Attach explanation sequence if declining..." 
-                                       class="w-full sm:flex-1 bg-zinc-900 border border-zinc-800 text-xs rounded-xl p-2.5 text-white focus:outline-none">
-                                <div class="flex gap-2 w-full sm:w-auto shrink-0">
-                                    <button type="submit" onclick="this.form.action='/admin/decide-slot/{{ slot.id }}/approve'" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer">
-                                        Approve
+                            <form method="POST" class="space-y-2 pt-2 border-t border-slate-200/60">
+                                <input type="text" name="admin_message" placeholder="Add optional status update note here..." class="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none">
+                                <div class="flex gap-2">
+                                    <button type="submit" onclick="this.form.action='/admin/decide-refund/{{ slot.id }}/approve'" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 rounded-xl cursor-pointer shadow-xs">
+                                        Release & Restore Credits
                                     </button>
-                                    <button type="submit" onclick="this.form.action='/admin/decide-slot/{{ slot.id }}/deny'" class="flex-1 sm:flex-none bg-zinc-900 text-rose-400 border border-rose-500/20 hover:bg-rose-950 text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer">
-                                        Deny
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    {% else %}
-                        <p class="text-xs text-zinc-600 italic py-2">Booking request pipeline clear.</p>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
-                <h3 class="text-xs font-bold tracking-widest text-white uppercase mb-4">🔄 Input Queue: Cancellation Rollbacks</h3>
-                <div class="space-y-4">
-                    {% for slot, user in refund_requests %}
-                        <div class="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-4">
-                            <div>
-                                <span class="text-[10px] font-bold text-purple-400 bg-purple-400/5 border border-purple-400/20 px-2 py-0.5 rounded">ROLLBACK FILED</span>
-                                <h4 class="font-bold text-white text-sm mt-2 font-sans">{{ user.name }}</h4>
-                                <p class="text-xs text-zinc-400 mt-1">Cancellation target: <strong class="text-white font-mono">{{ slot.date }} @ {{ slot.start_time|ampm }}</strong></p>
-                                <p class="text-xs text-zinc-500 font-mono">Value credit release: {{ slot.requested_duration|format_time }}</p>
-                            </div>
-
-                            <form action="" method="POST" class="pt-3 border-t border-zinc-900 flex flex-col sm:flex-row gap-2 items-center">
-                                <input type="text" name="admin_message" placeholder="Attach explanation sequence if declining..." 
-                                       class="w-full sm:flex-1 bg-zinc-900 border border-zinc-800 text-xs rounded-xl p-2.5 text-white focus:outline-none">
-                                <div class="flex gap-2 w-full sm:w-auto shrink-0">
-                                    <button type="submit" onclick="this.form.action='/admin/decide-refund/{{ slot.id }}/approve'" class="flex-1 sm:flex-none bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer">
-                                        Release Credits
-                                    </button>
-                                    <button type="submit" onclick="this.form.action='/admin/decide-refund/{{ slot.id }}/deny'" class="flex-1 sm:flex-none bg-zinc-900 text-zinc-400 border border-zinc-800 text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer">
-                                        Refuse
+                                    <button type="submit" onclick="this.form.action='/admin/decide-refund/{{ slot.id }}/deny'" class="bg-white hover:bg-slate-50 text-slate-400 border border-slate-200 text-xs font-bold px-4 py-2 rounded-xl cursor-pointer">
+                                        Refuse Release
                                     </button>
                                 </div>
                             </form>
                         </div>
                     {% else %}
-                        <p class="text-xs text-zinc-600 italic py-2">No rollback actions pending.</p>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
-                <h3 class="text-xs font-bold tracking-widest text-white uppercase mb-4">🖥️ System Index: All Timeline Blocks</h3>
-                <div class="space-y-3">
-                    {% for slot, user in all_slots %}
-                        <div class="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div>
-                                <p class="text-xs text-zinc-400 font-mono font-bold">
-                                    {{ slot.date }} @ {{ slot.start_time|ampm }}{% if slot.end_time %} - {{ slot.end_time|ampm }}{% endif %}
-                                </p>
-                                <p class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5 font-mono">
-                                    Architecture: {{ slot.slot_type }} 
-                                    {% if slot.duration_minutes %} | Size: {{ slot.duration_minutes|format_time }}{% endif %}
-                                    {% if slot.requested_duration %} | Claimed Size: {{ slot.requested_duration|format_time }}{% endif %}
-                                </p>
-                                
-                                {% if user %}
-                                    <p class="text-[11px] text-indigo-400 mt-1 font-sans font-medium">
-                                        👤 Actor Linked: <strong class="text-white">{{ user.name }}</strong> ({{ user.username }})
-                                    </p>
-                                {% else %}
-                                    <p class="text-[10px] text-zinc-600 mt-1 font-mono italic">
-                                        No Client Bound (Vacant Block)
-                                    </p>
-                                {% endif %}
-                            </div>
-                            <div class="flex items-center gap-3 self-end sm:self-auto">
-                                {% if slot.status == 'available' %}
-                                    <span class="text-[10px] font-bold text-emerald-400 bg-emerald-400/5 border border-emerald-400/20 px-2 py-0.5 rounded">AVAILABLE</span>
-                                {% elif slot.status == 'pending' %}
-                                    <span class="text-[10px] font-bold text-amber-400 bg-amber-400/5 border border-amber-400/20 px-2 py-0.5 rounded">PENDING</span>
-                                {% elif slot.status == 'approved' %}
-                                    <span class="text-[10px] font-bold text-indigo-400 bg-indigo-400/5 border border-indigo-400/20 px-2 py-0.5 rounded">APPROVED</span>
-                                {% elif slot.status == 'refund_requested' %}
-                                    <span class="text-[10px] font-bold text-purple-400 bg-purple-400/5 border border-purple-400/20 px-2 py-0.5 rounded">ROLLBACK PENDING</span>
-                                {% endif %}
-                                
-                                <form action="/admin/delete-slot/{{ slot.id }}" method="POST" onsubmit="return confirm('Confirm complete structural removal of this block from index?');">
-                                    <button type="submit" class="text-rose-400 hover:text-rose-300 text-xs border border-rose-500/20 hover:bg-rose-950/40 px-2.5 py-1 rounded-lg transition-colors cursor-pointer font-mono">
-                                        [DELETE]
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    {% else %}
-                        <p class="text-xs text-zinc-600 italic py-2">No system timeline blocks found in database core.</p>
+                        <p class="text-xs text-slate-400 italic py-2">No active rollback or cancellations flagged for review.</p>
                     {% endfor %}
                 </div>
             </div>
 
         </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lux-card p-6 bg-white lg:col-span-1 space-y-4">
+                <h3 class="text-xs font-bold tracking-widest uppercase text-slate-400">👤 Client Profiles Directory</h3>
+                <div class="divide-y divide-slate-100 max-h-[380px] overflow-y-auto pr-1">
+                    {% for u in users %}
+                        <div class="py-3 flex justify-between items-center text-xs">
+                            <div>
+                                <p class="text-slate-900 font-bold">{{ u.name }} <span class="text-slate-400 font-normal">(@{{ u.username }})</span></p>
+                                <p class="text-[10px] text-slate-400 mt-0.5">PIN Code: <span class="font-mono bg-slate-50 px-1 border border-slate-200 rounded-sm">{{ u.password }}</span></p>
+                                <p class="text-[10px] mt-1">
+                                    Status: 
+                                    {% if u.is_locked %}
+                                        <span class="text-amber-600 font-semibold">Locked Pending Evaluation</span>
+                                    {% else %}
+                                        <span class="text-slate-400">Unlocked (Idle)</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            
+                            {% if u.is_locked %}
+                            <form action="/admin/unlock-user/{{ u.id }}" method="POST">
+                                <button type="submit" class="bg-slate-50 border border-slate-200 hover:bg-white text-slate-800 text-[10px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer shadow-xs transition-colors">
+                                    Unlock Profile
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="lux-card p-6 bg-white lg:col-span-2 space-y-4">
+                <h3 class="text-xs font-bold tracking-widest uppercase text-slate-400">➕ Deploy Open Time Blocks</h3>
+                <form action="/admin/create-slot" method="POST" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Format Category</label>
+                        <select name="slot_type" id="slot_type_select" onchange="toggleFormInputs()" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
+                            <option value="specific">Fixed Block (Exact Duration Selection)</option>
+                            <option value="window">Open Window (Splittable Customer Frame)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Target Date</label>
+                        <input type="date" name="date" required class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Start Time (24h)</label>
+                        <input type="time" name="start_time" required class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
+                    </div>
+
+                    <div id="specific_inputs" class="sm:col-span-2 grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Duration Hours</label>
+                            <input type="number" name="spec_hours" min="0" placeholder="1" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Duration Minutes</label>
+                            <input type="number" name="spec_mins" min="0" max="59" placeholder="0" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div id="window_inputs" class="sm:col-span-2 hidden">
+                        <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">End Time Boundary (24h)</label>
+                        <input type="time" name="end_time" class="w-full sm:w-1/2 bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
+                    </div>
+
+                    <div class="sm:col-span-2 pt-2">
+                        <button type="submit" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer">
+                            Deploy Timeline Allocation
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="lux-card p-6 bg-white space-y-4">
+            <h3 class="text-xs font-bold tracking-widest uppercase text-slate-400">🗄 Global Operational Schedule Record Matrix</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs text-slate-600 divide-y divide-slate-200">
+                    <thead>
+                        <tr class="text-slate-400 font-medium uppercase tracking-wider text-[10px]">
+                            <th class="pb-3">Date</th>
+                            <th class="pb-3">Format Category</th>
+                            <th class="pb-3">Time Constraints Matrix</th>
+                            <th class="pb-3">Status</th>
+                            <th class="pb-3">Assigned User</th>
+                            <th class="pb-3 text-right">Actions Matrix</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for slot, user in all_slots %}
+                            <tr>
+                                <td class="py-3 font-semibold text-slate-900">{{ slot.date }}</td>
+                                <td class="py-3 capitalize">{{ slot.slot_type }}</td>
+                                <td class="py-3">
+                                    {% if slot.slot_type == 'window' %}
+                                        {{ slot.start_time|ampm }} - {{ slot.end_time|ampm }}
+                                    {% else %}
+                                        {{ slot.start_time|ampm }} ({{ slot.duration_minutes|format_time }})
+                                    {% endif %}
+                                </td>
+                                <td class="py-3">
+                                    <span class="px-2 py-0.5 rounded-md font-semibold text-[10px] tracking-wide uppercase
+                                        {% if slot.status == 'available' %}bg-slate-100 text-slate-600
+                                        {% elif slot.status == 'approved' %}bg-slate-800 text-white
+                                        {% else %}bg-amber-50 text-amber-700 border border-amber-200{% endif %}">
+                                        {{ slot.status }}
+                                    </span>
+                                </td>
+                                <td class="py-3 font-medium text-slate-800">{{ user.name if user else "None" }}</td>
+                                <td class="py-3 text-right">
+                                    <form action="/admin/delete-slot/{{ slot.id }}" method="POST">
+                                        <button type="submit" class="text-slate-400 hover:text-rose-600 text-[11px] font-medium transition-colors cursor-pointer">
+                                            Purge
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="py-4 text-center text-slate-400 italic">No schedule history logged.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </main>
 
     <script>
