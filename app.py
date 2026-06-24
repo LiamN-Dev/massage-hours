@@ -119,6 +119,13 @@ def dashboard():
         return redirect('/login')
         
     user = User.query.get(session['user_id'])
+    
+    # SAFETY CHECK: If the database was reset but the user still has an old browser cookie
+    if not user:
+        session.clear()
+        flash('Your session has expired. Please log in again.')
+        return redirect('/login')
+        
     pool = GlobalPool.query.first()
     
     available_slots = TimeSlot.query.filter_by(status='available').all()
