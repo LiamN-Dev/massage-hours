@@ -193,6 +193,38 @@ def admin_dashboard():
     
     return render_template('admin.html', pool=pool, users=users, pending_slots=pending_slots, refund_requests=refund_requests, all_slots=all_slots)
 
+@app.route('/admin/create-slot', methods=['POST'])
+def create_slot():
+    if 'user_id' not in session or session['role'] != 'admin': 
+        abort(403)
+        
+    slot_type = request.form.get('slot_type')  # Matches 'specific' or 'window'
+    date = request.form.get('date')
+    start_time = request.form.get('start_time')
+    
+    new_slot = TimeSlot(
+        slot_type=slot_type,
+        date=date,
+        start_time=start_time,
+        status='available'
+    )
+    
+    # Isolate parameters based on template conditional options
+    if slot_type == 'specific':
+        hours = int(request.form.get('hours') or 0)
+        minutes = int(request.form.get('minutes') or 0)
+        new_slot.duration_minutes = (hours * 60) + minutes
+        new_slot.end_time = None
+    else:
+        new_slot.end_time = request.form.get('end_time')
+        new_slot.duration_minutes = None
+        
+    db.session.add(new_slot)
+    db.session.commit()
+    
+    flash('New operational time slot successfully initialized.')
+    return redirect('/secret-portal-0831')
+
 @app.route('/admin/update-balance', methods=['POST'])
 def update_balance():
     if 'user_id' not in session or session['role'] != 'admin': abort(403)
