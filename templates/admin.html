@@ -1,289 +1,512 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Management Suite</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; }
-        .lux-card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.01);
-        }
-    </style>
-</head>
-<body class="bg-slate-50 text-slate-800 min-h-screen antialiased">
-    
-    <nav class="bg-white border-b border-slate-200 py-4 px-8 flex justify-between items-center sticky top-0 z-50 shadow-xs">
-        <div class="flex items-center gap-3">
-            <div class="h-2.5 w-2.5 rounded-full bg-slate-700 animate-pulse"></div>
-            <h1 class="text-xs font-bold tracking-widest text-slate-900 uppercase">Management Control Suite</h1>
-        </div>
-        <a href="/logout" class="text-xs text-slate-400 hover:text-slate-900 transition-colors border border-slate-200 px-4 py-2 rounded-xl bg-slate-50">Sign Out</a>
-    </nav>
+import os
+from flask import Flask, render_template, request, redirect, session, flash, abort
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 
-    <main class="max-w-7xl mx-auto p-6 space-y-8">
+app = Flask(__name__)
+app.secret_key = "massage_debt_secret_key_0831"
+app.config['SESSION_PERMANENT'] = False
+
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///massages.db')
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+# --- DATABASE MODELS ---
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(50), nullable=False) 
+    name = db.Column(db.String(50), nullable=False)
+    role = db.Column(db.String(20), default='user')
+    is_locked = db.Column(db.Boolean, default=False)  
+
+class GlobalPool(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    balance_minutes = db.Column(db.Integer, default=1800)
+
+class TimeSlot(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    slot_type = db.Column(db.String(20), nullable=False)   
+    date = db.Column(db.String(20), nullable=False)        
+    start_time = db.Column(db.String(10), nullable=False)  
+    end_time = db.Column(db.String(10), nullable=True)     
+    duration_minutes = db.Column(db.Integer, nullable=True) 
+    status = db.Column(db.String(20), default='available') 
+    claimed_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    requested_duration = db.Column(db.Integer, nullable=True) 
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True) 
+    is_global = db.Column(db.Boolean, default=False)
+    message = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Receipt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_name = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.String(200), nullable=False)
+    minutes_changed = db.Column(db.Integer, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+# --- TIME COMPUTATION ENGINE ---
+
+def time_to_minutes(t_str):
+    h, m = map(int, t_str.split(':'))
+    return h * 60 + m
+
+def minutes_to_time(mins):
+    h = mins // 60
+    m = mins % 60
+    return f"{h:02d}:{m:02d}"
+
+# --- JINJA INTERFACE FILTERS ---
+
+def format_duration(total_minutes):
+    if total_minutes is None:
+        return "0h 0m"
+    hours = abs(total_minutes) // 60
+    minutes = abs(total_minutes) % 60
+    sign = "-" if total_minutes < 0 else ""
+    return f"{sign}{hours}h {minutes}m"
+
+def format_ampm(time_str):
+    if not time_str:
+        return ""
+    try:
+        t = datetime.strptime(time_str.strip(), "%H:%M")
+        return t.strftime("%I:%M %p").lstrip("0")
+    except ValueError:
+        return time_str
+
+app.jinja_env.filters['format_time'] = format_duration
+app.jinja_env.filters['ampm'] = format_ampm
+
+# --- ROUTING ENGINE ---
+
+@app.route('/')
+def home():
+    session.clear()
+    return redirect('/login')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username'].strip().lower()
+        password = request.form['password'].strip()
         
-        {% with messages = get_flashed_messages() %}
-          {% if messages %}\
-            <div class="bg-slate-800 text-white px-4 py-3 rounded-xl text-xs font-medium shadow-md">
-                {{ messages[0] }}
-            </div>
-          {% endif %}
-        {% endwith %}
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="lux-card p-6 bg-gradient-to-br from-slate-800 to-slate-900 text-white flex flex-col justify-between">
-                <div>
-                    <span class="text-[10px] tracking-widest uppercase text-slate-400 font-bold">Allocated Pool Allocation</span>
-                    <h3 class="text-3xl font-extrabold tracking-tight mt-1">{{ pool.balance_minutes|format_time }}</h3>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-4 leading-relaxed">Global remaining timeline balance currently designated across client operations pools.</p>
-            </div>
-
-            <div class="lux-card p-6 bg-white col-span-2">
-                <span class="text-[10px] tracking-widest uppercase text-slate-400 font-bold block mb-3">Adjust Global Allocation Balance</span>
-                <form action="/admin/update-balance" method="POST" class="space-y-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Execution Mode</label>
-                            <select name="mode" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
-                                <option value="add">Add Hours</option>
-                                <option value="subtract">Subtract Hours</option>
-                                <option value="set">Set Absolute Balance</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Hours</label>
-                            <input type="number" name="hours" min="0" placeholder="0" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Minutes</label>
-                            <input type="number" name="minutes" min="0" max="59" placeholder="0" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
-                        </div>
-                    </div>
-                    <button type="submit" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer">
-                        Execute Configuration Change
-                    </button>
-                </form>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        if username == 'admin' and password == '08310831':
+            session['user_id'] = 0
+            session['username'] = 'admin'
+            session['role'] = 'admin'
+            return redirect('/secret-portal-0831')
             
-            <div class="lux-card p-6 bg-white space-y-4">
-                <h3 class="text-xs font-bold tracking-widest uppercase text-slate-400">📥 Pending Reservations Pending Review</h3>
-                <div class="space-y-4 max-h-[420px] overflow-y-auto pr-1">
-                    {% for slot, user in pending_slots %}
-                        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <h4 class="text-xs font-bold text-slate-900">{{ user.name }} <span class="text-slate-400 font-normal">(@{{ user.username }})</span></h4>
-                                    <p class="text-[11px] text-slate-500 mt-0.5">Target Date: <span class="font-medium text-slate-800">{{ slot.date }}</span></p>
-                                </div>
-                                <span class="text-[10px] font-bold px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg">
-                                    {{ slot.requested_duration|format_time if slot.requested_duration else "Fixed" }}
-                                </span>
-                            </div>
-                            <div class="text-[11px] text-slate-500">Requested Frame: <span class="font-medium text-slate-800">{{ slot.start_time|ampm }}</span></div>
-                            
-                            <form method="POST" class="space-y-2 pt-2 border-t border-slate-200/60">
-                                <input type="text" name="admin_message" placeholder="Add optional status update note here..." class="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none">
-                                <div class="flex gap-2">
-                                    <button type="submit" onclick="this.form.action='/admin/decide-slot/{{ slot.id }}/approve'" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 rounded-xl cursor-pointer shadow-xs">
-                                        Approve & Allocate
-                                    </button>
-                                    <button type="submit" onclick="this.form.action='/admin/decide-slot/{{ slot.id }}/deny'" class="bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 text-xs font-bold px-4 py-2 rounded-xl cursor-pointer">
-                                        Decline
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    {% else %}
-                        <p class="text-xs text-slate-400 italic py-2">No active pending reservation pipeline items loaded.</p>
-                    {% endfor %}
-                </div>
-            </div>
+        user = User.query.filter_by(username=username, password=password).first()
+        if user:
+            session['user_id'] = user.id
+            session['username'] = user.username
+            session['role'] = user.role
+            return redirect('/dashboard')
+            
+        flash('Invalid identification pin or handler.')
+    return render_template('login.html')
 
-            <div class="lux-card p-6 bg-white space-y-4">
-                <h3 class="text-xs font-bold tracking-widest uppercase text-slate-400">📤 Active Cancellation Requests</h3>
-                <div class="space-y-4 max-h-[420px] overflow-y-auto pr-1">
-                    {% for slot, user in refund_requests %}
-                        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <h4 class="text-xs font-bold text-slate-900">{{ user.name }}</h4>
-                                    <p class="text-[11px] text-slate-500 mt-0.5">Assigned Target Frame: {{ slot.date }} @ {{ slot.start_time|ampm }}</p>
-                                </div>
-                                <span class="text-[10px] font-bold px-2.5 py-1 bg-slate-800 text-white rounded-lg">
-                                    +{{ slot.requested_duration|format_time if slot.requested_duration else "Fixed" }}
-                                </span>
-                            </div>
-                            
-                            <form method="POST" class="space-y-2 pt-2 border-t border-slate-200/60">
-                                <input type="text" name="admin_message" placeholder="Add optional status update note here..." class="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none">
-                                <div class="flex gap-2">
-                                    <button type="submit" onclick="this.form.action='/admin/decide-refund/{{ slot.id }}/approve'" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 rounded-xl cursor-pointer shadow-xs">
-                                        Release & Restore Credits
-                                    </button>
-                                    <button type="submit" onclick="this.form.action='/admin/decide-refund/{{ slot.id }}/deny'" class="bg-white hover:bg-slate-50 text-slate-400 border border-slate-200 text-xs font-bold px-4 py-2 rounded-xl cursor-pointer">
-                                        Refuse Release
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    {% else %}
-                        <p class="text-xs text-slate-400 italic py-2">No active rollback or cancellations flagged for review.</p>
-                    {% endfor %}
-                </div>
-            </div>
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/login')
 
-        </div>
+# --- MEMBER BOOKING SERVICES ---
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div class="lux-card p-6 bg-white lg:col-span-1 space-y-4">
-                <h3 class="text-xs font-bold tracking-widest uppercase text-slate-400">👤 Client Profiles Directory</h3>
-                <div class="divide-y divide-slate-100 max-h-[380px] overflow-y-auto pr-1">
-                    {% for u in users %}
-                        <div class="py-3 flex justify-between items-center text-xs">
-                            <div>
-                                <p class="text-slate-900 font-bold">{{ u.name }} <span class="text-slate-400 font-normal">(@{{ u.username }})</span></p>
-                                <p class="text-[10px] text-slate-400 mt-0.5">PIN Code: <span class="font-mono bg-slate-50 px-1 border border-slate-200 rounded-sm">{{ u.password }}</span></p>
-                                <p class="text-[10px] mt-1">
-                                    Status: 
-                                    {% if u.is_locked %}
-                                        <span class="text-amber-600 font-semibold">Locked Pending Evaluation</span>
-                                    {% else %}
-                                        <span class="text-slate-400">Unlocked (Idle)</span>
-                                    {% endif %}
-                                </p>
-                            </div>
-                            
-                            {% if u.is_locked %}
-                            <form action="/admin/unlock-user/{{ u.id }}" method="POST">
-                                <button type="submit" class="bg-slate-50 border border-slate-200 hover:bg-white text-slate-800 text-[10px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer shadow-xs transition-colors">
-                                    Unlock Profile
-                                </button>
-                            </form>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                </div>
-            </div>
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session or session['role'] != 'user':
+        return redirect('/login')
+        
+    user = User.query.get(session['user_id'])
+    
+    # GUARANTEE pool exists inline if missing
+    pool = GlobalPool.query.first()
+    if not pool:
+        pool = GlobalPool(balance_minutes=1800)
+        db.session.add(pool)
+        db.session.commit()
+    
+    available_slots = TimeSlot.query.filter_by(status='available').all()
+    my_appointments = TimeSlot.query.filter_by(claimed_by=user.id).all()
+    
+    notifications = Notification.query.filter(
+        (Notification.user_id == user.id) | (Notification.is_global == True)
+    ).order_by(Notification.timestamp.desc()).all()
+    
+    receipts = Receipt.query.order_by(Receipt.timestamp.desc()).all()
+    all_approved = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'approved').all()
 
-            <div class="lux-card p-6 bg-white lg:col-span-2 space-y-4">
-                <h3 class="text-xs font-bold tracking-widest uppercase text-slate-400">➕ Deploy Open Time Blocks</h3>
-                <form action="/admin/create-slot" method="POST" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Format Category</label>
-                        <select name="slot_type" id="slot_type_select" onchange="toggleFormInputs()" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
-                            <option value="specific">Fixed Block (Exact Duration Selection)</option>
-                            <option value="window">Open Window (Splittable Customer Frame)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Target Date</label>
-                        <input type="date" name="date" required class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Start Time (24h)</label>
-                        <input type="time" name="start_time" required class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
-                    </div>
+    return render_template('dashboard.html', user=user, pool=pool, available_slots=available_slots, 
+                           my_appointments=my_appointments, notifications=notifications, 
+                           receipts=receipts, all_approved=all_approved)
 
-                    <div id="specific_inputs" class="sm:col-span-2 grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Duration Hours</label>
-                            <input type="number" name="spec_hours" min="0" placeholder="1" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">Duration Minutes</label>
-                            <input type="number" name="spec_mins" min="0" max="59" placeholder="0" class="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
-                        </div>
-                    </div>
+@app.route('/book-slot/<int:slot_id>', methods=['POST'])
+def book_slot(slot_id):
+    if 'user_id' not in session or session['role'] != 'user':
+        return redirect('/login')
+        
+    user = User.query.get(session['user_id'])
+    if user.is_locked:
+        flash('Booking rejected. Your profile is locked pending active operation approvals.')
+        return redirect('/dashboard')
+        
+    slot = TimeSlot.query.get_or_404(slot_id)
+    if slot.status != 'available':
+        flash('Timeline slot is no longer available.')
+        return redirect('/dashboard')
+        
+    if slot.slot_type == 'window':
+        start_input = request.form.get('start_time')
+        end_input = request.form.get('end_time')
+        if not start_input or not end_input:
+            flash('Error: Complete window timeframe bounds must be targeted.')
+            return redirect('/dashboard')
+            
+        try:
+            slot_start = time_to_minutes(slot.start_time)
+            slot_end = time_to_minutes(slot.end_time)
+            req_start = time_to_minutes(start_input)
+            req_end = time_to_minutes(end_input)
+        except ValueError:
+            flash('Formatting error in selected timelines.')
+            return redirect('/dashboard')
+            
+        if req_start < slot_start or req_end > slot_end:
+            flash('Out of Bounds: Selected time falls outside of this window frame.')
+            return redirect('/dashboard')
+            
+        if req_start >= req_end:
+            flash('Chronology error: End time must fall after the start time.')
+            return redirect('/dashboard')
+            
+        duration = req_end - req_start
+        if duration > 80:
+            flash('Constraint error: Custom block requests cannot exceed 1 hour and 20 minutes.')
+            return redirect('/dashboard')
+            
+        if req_start > slot_start:
+            pre_slot = TimeSlot(
+                slot_type='window',
+                date=slot.date,
+                start_time=slot.start_time,
+                end_time=minutes_to_time(req_start),
+                status='available'
+            )
+            db.session.add(pre_slot)
+            
+        if req_end < slot_end:
+            post_slot = TimeSlot(
+                slot_type='window',
+                date=slot.date,
+                start_time=minutes_to_time(req_end),
+                end_time=slot.end_time,
+                status='available'
+            )
+            db.session.add(post_slot)
+            
+        slot.start_time = minutes_to_time(req_start)
+        slot.end_time = minutes_to_time(req_end)
+        slot.requested_duration = duration
+        slot.status = 'pending'
+        slot.claimed_by = user.id
+    else:
+        slot.requested_duration = slot.duration_minutes
+        slot.status = 'pending'
+        slot.claimed_by = user.id
+        
+    user.is_locked = True 
+    db.session.commit()
+    flash('Booking registered. Profile locked pending management evaluation.')
+    return redirect('/dashboard')
 
-                    <div id="window_inputs" class="sm:col-span-2 hidden">
-                        <label class="block text-[10px] text-slate-400 font-semibold uppercase mb-1">End Time Boundary (24h)</label>
-                        <input type="time" name="end_time" class="w-full sm:w-1/2 bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none">
-                    </div>
+@app.route('/request-refund/<int:slot_id>', methods=['POST'])
+def request_refund(slot_id):
+    if 'user_id' not in session or session['role'] != 'user':
+        return redirect('/login')
+        
+    user = User.query.get(session['user_id'])
+    slot = TimeSlot.query.get_or_404(slot_id)
+    if slot.claimed_by == user.id and slot.status == 'approved':
+        slot.status = 'refund_requested'
+        user.is_locked = True 
+        db.session.commit()
+        flash('Cancellation filed for review. Account restricted during confirmation.')
+    return redirect('/dashboard')
 
-                    <div class="sm:col-span-2 pt-2">
-                        <button type="submit" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer">
-                            Deploy Timeline Allocation
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+# --- LUXURY MANAGEMENT PANEL SUITE ---
 
-        <div class="lux-card p-6 bg-white space-y-4">
-            <h3 class="text-xs font-bold tracking-widest uppercase text-slate-400">🗄 Global Operational Schedule Record Matrix</h3>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs text-slate-600 divide-y divide-slate-200">
-                    <thead>
-                        <tr class="text-slate-400 font-medium uppercase tracking-wider text-[10px]">
-                            <th class="pb-3">Date</th>
-                            <th class="pb-3">Format Category</th>
-                            <th class="pb-3">Time Constraints Matrix</th>
-                            <th class="pb-3">Status</th>
-                            <th class="pb-3">Assigned User</th>
-                            <th class="pb-3 text-right">Actions Matrix</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        {% for slot, user in all_slots %}
-                            <tr>
-                                <td class="py-3 font-semibold text-slate-900">{{ slot.date }}</td>
-                                <td class="py-3 capitalize">{{ slot.slot_type }}</td>
-                                <td class="py-3">
-                                    {% if slot.slot_type == 'window' %}
-                                        {{ slot.start_time|ampm }} - {{ slot.end_time|ampm }}
-                                    {% else %}
-                                        {{ slot.start_time|ampm }} ({{ slot.duration_minutes|format_time }})
-                                    {% endif %}
-                                </td>
-                                <td class="py-3">
-                                    <span class="px-2 py-0.5 rounded-md font-semibold text-[10px] tracking-wide uppercase
-                                        {% if slot.status == 'available' %}bg-slate-100 text-slate-600
-                                        {% elif slot.status == 'approved' %}bg-slate-800 text-white
-                                        {% else %}bg-amber-50 text-amber-700 border border-amber-200{% endif %}">
-                                        {{ slot.status }}
-                                    </span>
-                                </td>
-                                <td class="py-3 font-medium text-slate-800">{{ user.name if user else "None" }}</td>
-                                <td class="py-3 text-right">
-                                    <form action="/admin/delete-slot/{{ slot.id }}" method="POST">
-                                        <button type="submit" class="text-slate-400 hover:text-rose-600 text-[11px] font-medium transition-colors cursor-pointer">
-                                            Purge
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        {% else %}
-                            <tr>
-                                <td colspan="6" class="py-4 text-center text-slate-400 italic">No schedule history logged.</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+@app.route('/secret-portal-0831')
+def admin_dashboard():
+    if 'user_id' not in session or session['role'] != 'admin':
+        abort(404)
+        
+    # GUARANTEE pool exists inline if missing
+    pool = GlobalPool.query.first()
+    if not pool:
+        pool = GlobalPool(balance_minutes=1800)
+        db.session.add(pool)
+        db.session.commit()
+        
+    users = User.query.filter_by(role='user').all()
+    pending_slots = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'pending').all()
+    refund_requests = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'refund_requested').all()
+    all_slots_with_users = db.session.query(TimeSlot, User).outerjoin(User, TimeSlot.claimed_by == User.id).all()
+    
+    return render_template('admin.html', pool=pool, users=users, pending_slots=pending_slots, refund_requests=refund_requests, all_slots=all_slots_with_users)
 
-    </main>
+@app.route('/admin/unlock-user/<int:user_id>', methods=['POST'])
+def unlock_user(user_id):
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    user = User.query.get_or_404(user_id)
+    user.is_locked = False
+    db.session.commit()
+    flash(f'Account restrictions manually removed for user: {user.name}.')
+    return redirect('/secret-portal-0831')
 
-    <script>
-        function toggleFormInputs() {
-            var selector = document.getElementById('slot_type_select').value;
-            if(selector === 'specific') {
-                document.getElementById('specific_inputs').classList.remove('hidden');
-                document.getElementById('window_inputs').classList.add('hidden');
-            } else {
-                document.getElementById('specific_inputs').classList.add('hidden');
-                document.getElementById('window_inputs').classList.remove('hidden');
-            }
-        }
-    </script>
-</body>
-</html>
+@app.route('/admin/create-user', methods=['POST'])
+def create_user():
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    username = request.form.get('username').strip().lower()
+    password = request.form.get('password').strip()
+    name = request.form.get('name').strip()
+    
+    if User.query.filter_by(username=username).first():
+        flash('Error: Profile handler identifier already taken.')
+        return redirect('/secret-portal-0831')
+        
+    new_user = User(username=username, password=password, name=name, role='user', is_locked=False)
+    db.session.add(new_user)
+    db.session.commit()
+    flash(f'New profile deployed successfully for {name}.')
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/change-password', methods=['POST'])
+def change_password():
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    target_user_id = int(request.form.get('user_id'))
+    new_password = request.form.get('new_password').strip()
+    
+    user = User.query.get(target_user_id)
+    if user:
+        user.password = new_password
+        db.session.commit()
+        flash(f'Access validation codes modified for user: {user.name}.')
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/create-slot', methods=['POST'])
+def create_slot():
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+        
+    slot_type = request.form.get('slot_type')
+    date = request.form.get('date')
+    start_time = request.form.get('start_time')
+    
+    new_slot = TimeSlot(
+        slot_type=slot_type,
+        date=date,
+        start_time=start_time,
+        status='available'
+    )
+    
+    if slot_type == 'specific':
+        hours = int(request.form.get('spec_hours') or 0)
+        minutes = int(request.form.get('spec_mins') or 0)
+        new_slot.duration_minutes = (hours * 60) + minutes
+    elif slot_type == 'window':
+        new_slot.end_time = request.form.get('end_time')
+        
+    db.session.add(new_slot)
+    db.session.commit()
+    
+    flash('New available frame integrated into booking queue.')
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/decide-slot/<int:slot_id>/<string:action>', methods=['POST'])
+def decide_slot(slot_id, action):
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+        
+    slot = TimeSlot.query.get_or_404(slot_id)
+    admin_message = request.form.get('admin_message', '').strip()
+    user_id = slot.claimed_by
+    user = User.query.get(user_id)
+    
+    if action == 'approve':
+        slot.status = 'approved'
+        pool = GlobalPool.query.first()
+        
+        if pool and slot.requested_duration:
+            pool.balance_minutes -= slot.requested_duration
+            
+            receipt = Receipt(
+                user_id=user_id,
+                user_name=user.name if user else "Member",
+                description=f"Confirmed Booking: {slot.date} @ {slot.start_time}",
+                minutes_changed=-slot.requested_duration
+            )
+            db.session.add(receipt)
+            
+        if user:
+            user.is_locked = False 
+            
+        notif = Notification(
+            user_id=user_id,
+            is_global=False,
+            message=f"Your booking for {slot.date} has been APPROVED. {admin_message}"
+        )
+        db.session.add(notif)
+        flash('Booking validated successfully. User restrictions removed.')
+        
+    elif action == 'deny':
+        if user:
+            user.is_locked = False 
+            
+        notif = Notification(
+            user_id=user_id,
+            is_global=False,
+            message=f"Your booking request for {slot.date} was declined. {admin_message}"
+        )
+        db.session.add(notif)
+        
+        slot.status = 'available'
+        slot.claimed_by = None
+        slot.requested_duration = None
+        flash('Booking request declined and slot safely reclaimed.')
+        
+    db.session.commit()
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/decide-refund/<int:slot_id>/<string:action>', methods=['POST'])
+def decide_refund(slot_id, action):
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+        
+    slot = TimeSlot.query.get_or_404(slot_id)
+    admin_message = request.form.get('admin_message', '').strip()
+    user_id = slot.claimed_by
+    user = User.query.get(user_id)
+    
+    if action == 'approve':
+        pool = GlobalPool.query.first()
+        if pool and slot.requested_duration:
+            pool.balance_minutes += slot.requested_duration
+            
+            receipt = Receipt(
+                user_id=user_id,
+                user_name=user.name if user else "Member",
+                description=f"Cancellation Approved: Returned hours for {slot.date}",
+                minutes_changed=slot.requested_duration
+            )
+            db.session.add(receipt)
+            
+        if user:
+            user.is_locked = False 
+            
+        notif = Notification(
+            user_id=user_id,
+            is_global=False,
+            message=f"Cancellation verification complete. Time balances restored. {admin_message}"
+        )
+        db.session.add(notif)
+        
+        slot.status = 'available'
+        slot.claimed_by = None
+        slot.requested_duration = None
+        flash('Cancellation evaluated and hour balances restored.')
+        
+    elif action == 'deny':
+        if user:
+            user.is_locked = False 
+            
+        slot.status = 'approved'
+        notif = Notification(
+            user_id=user_id,
+            is_global=False,
+            message=f"Your cancellation request was evaluated and declined. {admin_message}"
+        )
+        db.session.add(notif)
+        flash('Cancellation request declined.')
+        
+    db.session.commit()
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/update-balance', methods=['POST'])
+def update_balance():
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    pool = GlobalPool.query.first()
+    
+    mode = request.form.get('mode') 
+    hours = int(request.form.get('hours') or 0)
+    mins = int(request.form.get('minutes') or 0)
+    input_minutes = (hours * 60) + mins
+    
+    old_balance = pool.balance_minutes
+    if mode == 'set':
+        pool.balance_minutes = input_minutes
+    elif mode == 'add':
+        pool.balance_minutes += input_minutes
+    elif mode == 'subtract':
+        pool.balance_minutes -= input_minutes
+        
+    diff = pool.balance_minutes - old_balance
+    
+    receipt = Receipt(user_id=0, user_name="Admin Override", description=f"Manual balance configuration change ({mode.upper()})", minutes_changed=diff)
+    db.session.add(receipt)
+    db.session.commit()
+    
+    flash('Global balance allocation adjusted successfully.')
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/send-notification', methods=['POST'])
+def send_notification():
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    target = request.form.get('target') 
+    message_text = request.form.get('message', '').strip()
+    
+    if not message_text:
+        return redirect('/secret-portal-0831')
+        
+    if target == 'global':
+        notif = Notification(is_global=True, message=message_text)
+        db.session.add(notif)
+    else:
+        user_id = int(target)
+        notif = Notification(user_id=user_id, is_global=False, message=message_text)
+        db.session.add(notif)
+        
+    db.session.commit()
+    return redirect('/secret-portal-0831')
+
+@app.route('/admin/delete-slot/<int:slot_id>', methods=['POST'])
+def delete_slot(slot_id):
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+        
+    slot = TimeSlot.query.get_or_404(slot_id)
+    db.session.delete(slot)
+    db.session.commit()
+    
+    flash('Timeline item safely removed from records.')
+    return redirect('/secret-portal-0831')
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+        # AUTO SEED ON LAUNCH
+        if not GlobalPool.query.first():
+            db.session.add(GlobalPool(balance_minutes=1800))
+        if not User.query.filter_by(username='gretta').first():
+            db.session.add(User(username='gretta', password='iLOVEpeter10!', name='Gretta', role='user'))
+        if not User.query.filter_by(username='peter').first():
+            db.session.add(User(username='peter', password='2887', name='Peter', role='user'))
+        db.session.commit()
+    app.run(debug=True)
