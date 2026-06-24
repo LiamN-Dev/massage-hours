@@ -186,9 +186,10 @@ def book_slot(slot_id):
         if req_start < slot_start or req_end > slot_end:
             flash('Out of Bounds: Selected time falls outside of this window frame.')
             return redirect('/dashboard')
-            if req_start >= req_end:
-                flash('Chronology error: End time must fall after the start time.')
-                return redirect('/dashboard')
+            
+        if req_start >= req_end:
+            flash('Chronology error: End time must fall after the start time.')
+            return redirect('/dashboard')
                 
         duration = req_end - req_start
         if duration > 80:
