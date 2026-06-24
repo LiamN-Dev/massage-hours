@@ -17,7 +17,66 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # --- DATABASE MODELS ---
+# --- DATABASE MODELS ---
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(50), nullable=False) 
+    name = db.Column(db.String(50), nullable=False)
+    role = db.Column(db.String(20), default='user')
+    is_locked = db.Column(db.Boolean, default=False) # NEW: Lock status
 
+# --- ROUTES ---
+
+@app.route('/book-slot/<int:slot_id>', methods=['POST'])
+def book_slot(slot_id):
+    if 'user_id' not in session or session['role'] != 'user':
+        return redirect('/login')
+        
+    user = User.query.get(session['user_id'])
+    if user.is_locked:
+        flash('Account currently locked. Please wait for admin approval.')
+        return redirect('/dashboard')
+
+    slot = TimeSlot.query.get_or_404(slot_id)
+    # Validate Time Window (Max 80 mins)
+    start_t = datetime.strptime(request.form['start_time'], "%H:%M")
+    end_t = datetime.strptime(request.form['end_time'], "%H:%M")
+    duration = (end_t - start_t).total_seconds() / 60
+    
+    if duration > 80:
+        flash('Selection error: Block exceeds 80 minute limit.')
+        return redirect('/dashboard')
+        
+    slot.claimed_by = user.id
+    slot.status = 'pending'
+    user.is_locked = True # LOCK THE USER
+    
+    db.session.commit()
+    flash('Booking request submitted. Account restricted until approval.')
+    return redirect('/dashboard')
+
+@app.route('/admin/update-balance', methods=['POST'])
+def update_balance():
+    if 'user_id' not in session or session['role'] != 'admin': abort(403)
+    pool = GlobalPool.query.first()
+    
+    mode = request.form.get('mode')
+    # Force integers
+    hours = int(request.form.get('hours', 0))
+    mins = int(request.form.get('minutes', 0))
+    input_minutes = (hours * 60) + mins
+    
+    if mode == 'set':
+        pool.balance_minutes = input_minutes
+    elif mode == 'add':
+        pool.balance_minutes += input_minutes
+    elif mode == 'subtract':
+        pool.balance_minutes -= input_minutes
+        
+    db.session.commit()
+    return redirect('/secret-portal-0831')
+    
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
