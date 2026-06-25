@@ -8,7 +8,6 @@
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
         
-        /* Smooth Cascading Animation Setup */
         @keyframes fadeInUp {
             0% { opacity: 0; transform: translateY(20px); }
             100% { opacity: 1; transform: translateY(0); }
@@ -24,7 +23,6 @@
         .delay-2 { animation-delay: 200ms; }
         .delay-3 { animation-delay: 300ms; }
         
-        /* Glassmorphism utility */
         .glass-nav {
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(12px);
@@ -117,7 +115,7 @@
                                 </span>
                                 <h4 class="font-bold text-zinc-900 text-lg mt-4">{{ slot.date }}</h4>
                                 
-                                <div class="mt-2 space-y-1">
+                                <div class="mt-2 space-y-1 mb-4">
                                     <p class="text-xs text-zinc-500">Opens at: <strong class="text-zinc-800">{{ slot.start_time|ampm }}</strong></p>
                                     
                                     {% if slot.slot_type == 'specific' %}
@@ -128,14 +126,41 @@
                                 </div>
                             </div>
 
-                            <form action="/book-slot/{{ slot.id }}" method="POST" class="mt-6 pt-5 border-t border-zinc-200/60">
+                            <form action="/book-slot/{{ slot.id }}" method="POST" class="mt-auto pt-5 border-t border-zinc-200/60">
                                 {% if slot.slot_type == 'window' %}
-                                    <div class="mb-4 bg-white border border-zinc-200 rounded-xl p-3 shadow-xs">
-                                        <label class="block text-[10px] font-bold uppercase text-zinc-400 mb-2">I want to reserve:</label>
-                                        <div class="flex gap-2 items-center">
-                                            <input type="number" name="hours" min="0" max="1" placeholder="Hrs" class="w-full p-2 text-center bg-zinc-50 border border-zinc-200 text-sm font-semibold rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
-                                            <span class="text-zinc-300 font-bold">:</span>
-                                            <input type="number" name="minutes" min="0" max="59" step="5" placeholder="Mins" class="w-full p-2 text-center bg-zinc-50 border border-zinc-200 text-sm font-semibold rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
+                                    <div class="mb-4 space-y-3">
+                                        <!-- START TIME SELECTORS -->
+                                        <div class="bg-white border border-zinc-200 rounded-xl p-3 shadow-sm">
+                                            <label class="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">Book Start Time:</label>
+                                            <div class="flex gap-1.5 items-center">
+                                                <select name="start_h" class="w-full p-2 text-center bg-zinc-50 border border-zinc-200 text-xs font-semibold rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none cursor-pointer">
+                                                    {% for h in range(1, 13) %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+                                                </select>
+                                                <span class="text-zinc-300 font-bold">:</span>
+                                                <select name="start_m" class="w-full p-2 text-center bg-zinc-50 border border-zinc-200 text-xs font-semibold rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none cursor-pointer">
+                                                    {% for m in range(0, 60, 5) %}<option value="{{ '%02d' % m }}">{{ '%02d' % m }}</option>{% endfor %}
+                                                </select>
+                                                <select name="start_ampm" class="w-full p-2 text-center bg-zinc-50 border border-zinc-200 text-xs font-semibold rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none cursor-pointer">
+                                                    <option value="PM">PM</option><option value="AM">AM</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <!-- END TIME SELECTORS -->
+                                        <div class="bg-white border border-zinc-200 rounded-xl p-3 shadow-sm">
+                                            <label class="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">Book End Time:</label>
+                                            <div class="flex gap-1.5 items-center">
+                                                <select name="end_h" class="w-full p-2 text-center bg-zinc-50 border border-zinc-200 text-xs font-semibold rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none cursor-pointer">
+                                                    {% for h in range(1, 13) %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+                                                </select>
+                                                <span class="text-zinc-300 font-bold">:</span>
+                                                <select name="end_m" class="w-full p-2 text-center bg-zinc-50 border border-zinc-200 text-xs font-semibold rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none cursor-pointer">
+                                                    {% for m in range(0, 60, 5) %}<option value="{{ '%02d' % m }}">{{ '%02d' % m }}</option>{% endfor %}
+                                                </select>
+                                                <select name="end_ampm" class="w-full p-2 text-center bg-zinc-50 border border-zinc-200 text-xs font-semibold rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none cursor-pointer">
+                                                    <option value="PM">PM</option><option value="AM">AM</option>
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
                                 {% endif %}
