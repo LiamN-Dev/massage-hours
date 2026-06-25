@@ -170,9 +170,59 @@ def book_slot(slot_id):
         return redirect('/dashboard')
     
     if slot.slot_type == 'window':
-        hours = int(request.form.get('hours', 0))
-        minutes = int(request.form.get('minutes', 0))
-        req_duration = (hours * 60) + minutes
+        # 1. Extract frontend time inputs
+        st_h = int(request.form.get('start_h', 12))
+        st_m = int(request.form.get('start_m', 0))
+        st_ampm = request.form.get('start_ampm', 'AM')
+        
+        en_h = int(request.form.get('end_h', 12))
+        en_m = int(request.form.get('end_m', 0))
+        en_ampm = request.form.get('end_ampm', 'AM')
+        
+        # 2. Convert AM/PM to standard 24-hour minutes
+        def to_mins(h, m, ampm):
+            if h == 12: h = 0
+            if ampm == 'PM': h += 12
+            return (h * 60) + m
+            
+        user_start = to_mins(st_h, st_m, st_ampm)
+        user_end = to_mins(en_h, en_m, en_ampm)
+        
+        # 3. Calculate requested duration (handling midnight crossover)
+        req_duration = user_end - user_start
+        if req_duration < 0:
+            req_duration += (24 * 60)
+            
+        if req_duration <= 0:
+            flash('Please select a valid duration.')
+            return redirect('/dashboard')
+            
+        # STRICT RULE: Flexible bookings cannot exceed 80 minutes
+        if req_duration > 80:
+            flash('Policy Error: Flexible window requests cannot exceed 1 hour and 20 minutes (80 mins).')
+            return redirect('/dashboard')
+            
+        # 4. Enforce global window boundaries
+        window_start = time_to_minutes(slot.start_time)
+        window_end = time_to_minutes(slot.end_time) if slot.end_time else window_start
+        
+        if window_end <= window_start:
+            window_end += (24 * 60) # Window crosses midnight
+            
+        # Normalize user times relative to the window start for accurate bound checking
+        adj_user_start = user_start
+        if adj_user_start < window_start and window_end > (24 * 60):
+            adj_user_start += (24 * 60)
+        adj_user_end = adj_user_start + req_duration
+        
+        if adj_user_start < window_start or adj_user_end > window_end:
+            flash('Error: The time you selected falls outside the available schedule window.')
+            return redirect('/dashboard')
+            
+        # 5. Lock in the requested times
+        slot.requested_duration = req_duration
+        slot.start_time = minutes_to_time(user_start)
+        slot.end_time = minutes_to_time(user_end)
         
         if req_duration <= 0:
             flash('Please select a valid duration.')
