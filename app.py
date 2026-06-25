@@ -219,36 +219,34 @@ def book_slot(slot_id):
             flash('Error: The time you selected falls outside the available schedule window.')
             return redirect('/dashboard')
             
-        # 5. Lock in the requested times
+        # --- SPLIT UNUSED TIME AND RE-POST AS FLEXIBLE SLOTS ---
+        
+        # Spawn an available slot for leftover time BEFORE the user's appointment
+        if adj_user_start > window_start:
+            pre_slot = TimeSlot(
+                slot_type='window',
+                date=slot.date,
+                start_time=minutes_to_time(window_start),
+                end_time=minutes_to_time(adj_user_start),
+                status='available'
+            )
+            db.session.add(pre_slot)
+            
+        # Spawn an available slot for leftover time AFTER the user's appointment
+        if adj_user_end < window_end:
+            post_slot = TimeSlot(
+                slot_type='window',
+                date=slot.date,
+                start_time=minutes_to_time(adj_user_end),
+                end_time=minutes_to_time(window_end),
+                status='available'
+            )
+            db.session.add(post_slot)
+            
+        # Lock current slot configuration directly into user constraints
         slot.requested_duration = req_duration
         slot.start_time = minutes_to_time(user_start)
         slot.end_time = minutes_to_time(user_end)
-        
-        if req_duration <= 0:
-            flash('Please select a valid duration.')
-            return redirect('/dashboard')
-            
-        # STRICT RULE: Flexible bookings cannot exceed 80 minutes
-        if req_duration > 80:
-            flash('Policy Error: Flexible window requests cannot exceed 1 hour and 20 minutes (80 mins).')
-            return redirect('/dashboard')
-            
-        # STRICT RULE: Midnight calculation & Over-booking prevention
-        start_mins = time_to_minutes(slot.start_time)
-        end_mins = time_to_minutes(slot.end_time) if slot.end_time else start_mins
-        
-        # If the window crosses midnight (e.g. 21:00 to 00:00), adjust end bounds for math
-        if end_mins <= start_mins: 
-            end_mins += (24 * 60)
-            
-        max_duration = end_mins - start_mins
-        if req_duration > max_duration:
-            flash(f'Error: You requested {format_minutes(req_duration)}, but the window is only {format_minutes(max_duration)} long.')
-            return redirect('/dashboard')
-            
-        slot.requested_duration = req_duration
-        # Calculate exactly when this specific booking will end to show on the calendar
-        slot.end_time = minutes_to_time(start_mins + req_duration)
     else:
         slot.requested_duration = slot.duration_minutes
         
