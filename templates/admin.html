@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Admin Terminal Core</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    </style>
+</head>
+<body class="bg-zinc-950 min-h-screen text-zinc-300 antialiased selection:bg-indigo-500/20">
+
+    <!-- Navigation Bar -->
+    <nav class="bg-zinc-900/40 backdrop-blur-md border-b border-zinc-800/80 py-4 px-8 flex justify-between items-center sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="h-2 w-2 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/50"></div>
+            <h1 class="text-sm font-bold tracking-widest text-white uppercase">SYSTEM ENGINE CORE</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="text-xs text-zinc-400 font-mono">POOL BALANCE: <span class="text-indigo-400 font-bold">{{ pool.balance_minutes|format_time }}</span></span>
+            <a href="/logout" class="text-xs text-zinc-500 hover:text-white transition-colors border border-zinc-800 px-3 py-1.5 rounded-lg bg-zinc-950">Close Terminal</a>
+        </div>
+    </nav>
+
+    <!-- Main Workspace Grid -->
+    <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Status Notification Toasts -->
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="col-span-1 lg:col-span-3 bg-indigo-950/40 border border-indigo-800 text-indigo-300 p-4 rounded-xl text-xs font-mono">
+                &gt;&gt; {{ messages[0] }}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <!-- ===== LEFT COLUMN: Controls ===== -->
+        <div class="space-y-6">
+
+            <!-- Global Pool Configurations -->
+            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">:: POOL CONFIGURATIONS</h2>
+                <form action="/admin/update-balance" method="POST" class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Adjustment Vector</label>
+                        <select name="mode" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                            <option value="add">ADD TO POOL (+)</option>
+                            <option value="subtract">SUBTRACT FROM POOL (-)</option>
+                            <option value="set">SET ABSOLUTE BALANCE (=)</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Hours</label>
+                            <input type="number" name="hours" placeholder="0" min="0" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Minutes</label>
+                            <input type="number" name="minutes" placeholder="0" min="0" max="59" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold py-2.5 rounded-xl cursor-pointer transition-colors">
+                        Deploy Configuration Changes
+                    </button>
+                </form>
+            </div>
+
+            <!-- Generate New Timeline Slots -->
+            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">:: INITIALIZE TIMELINE</h2>
+                <form action="/admin/create-slot" method="POST" class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Matrix Type</label>
+                        <select id="slot_type_select" name="slot_type" onchange="toggleFormInputs()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                            <option value="specific">SPECIFIC RESERVATION BLOCK</option>
+                            <option value="window">FLEXIBLE OPEN WINDOW</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Target Date</label>
+                            <input type="date" name="date" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Start Time Frame</label>
+                            <input type="time" name="start_time" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+
+                    <div id="specific_inputs" class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Duration Hours</label>
+                            <input type="number" name="spec_hours" placeholder="1" min="0" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Duration Minutes</label>
+                            <input type="number" name="spec_mins" placeholder="0" min="0" max="59" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+
+                    <div id="window_inputs" class="hidden">
+                        <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Window Close Time Frame</label>
+                        <input type="time" name="end_time" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                    </div>
+
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 rounded-xl cursor-pointer transition-colors">
+                        Inject Timeline Matrix
+                    </button>
+                </form>
+            </div>
+
+            <!-- Profile Infrastructure Registration -->
+            <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">:: DEPLOY PROFILE NODE</h2>
+                <form action="/admin/create-user" method="POST" class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Display Identifier Name</label>
+                        <input type="text" name="name" required placeholder="User's Full Name" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Profile Username</label>
+                            <input type="text" name="username" required placeholder="handler" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1.5">Pin Access Password</label>
+                            <input type="password" name="password" required placeholder="******" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-bold py-2.5 rounded-xl cursor-pointer transition-colors">
+                        Instantiate New Profile
+                    </button>
+                </form>
+            </div>
+
+        </div>
+        <!-- ===== END LEFT COLUMN ===== -->
+
+        <!-- ===== CENTER + RIGHT COLUMNS (span 2): Review Systems ===== -->
+        <div class="space-y-6 lg:col-span-2">
+
+            <!-- Pending Bookings Approval Section -->
+            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+                <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">:: ACTIVE CLAIMS EVALUATION RADAR</h2>
+                <div class="space-y-4 max-h-96 overflow-y-auto pr-1">
+                    {% for slot, user in pending_slots %}
+                        <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold text-white">{{ user.name }}</span>
+                                    <span class="text-[10px] border border-indigo-500/30 bg-indigo-500/10 px-1.5 py-0.5 text-indigo-400 rounded">@{{ user.username }}</span>
+                                </div>
+                                <p class="text-xs text-zinc-400">
+                                    Target Date: <span class="text-zinc-200">{{ slot.date }}</span> |
+                                    Timeframe: <span class="text-zinc-200">{{ slot.start_time|ampm }}{% if slot.end_time %} - {{ slot.end_time|ampm }}{% endif %}</span>
+                                </p>
+                                <p class="text-[11px] text-zinc-500 font-mono">Calculated Weight: {{ slot.requested_duration|format_time }}</p>
+                            </div>
+
+                            <div class="w-full md:w-auto flex flex-col gap-2">
+                                <input type="text" id="msg_{{ slot.id }}" placeholder="Transmission message note..." class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1 text-[11px] text-white outline-none focus:border-indigo-500 placeholder-zinc-600">
+                                <div class="flex gap-2 justify-end">
+                                    <form action="/admin/decide-slot/{{ slot.id }}/approve" method="POST"
+                                          onsubmit="this.querySelector('[name=admin_message]').value = document.getElementById('msg_{{ slot.id }}').value;">
+                                        <input type="hidden" name="admin_message">
+                                        <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-1.5 rounded-lg cursor-pointer">Approve</button>
+                                    </form>
+                                    <form action="/admin/decide-slot/{{ slot.id }}/deny" method="POST"
+                                          onsubmit="this.querySelector('[name=admin_message]').value = document.getElementById('msg_{{ slot.id }}').value;">
+                                        <input type="hidden" name="admin_message">
+                                        <button type="submit" class="bg-rose-950/40 text-rose-400 border border-rose-800 text-xs font-bold px-4 py-1.5 rounded-lg cursor-pointer">Decline</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-xs text-zinc-500 italic py-2">No active claims awaiting analysis in queue.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Pending Rollback Refund Claims -->
+            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+                <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">:: OPERATIONS REVERSAL PIPELINE (CANCELLATIONS)</h2>
+                <div class="space-y-4 max-h-96 overflow-y-auto pr-1">
+                    {% for slot, user in refund_requests %}
+                        <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <p class="text-xs font-bold text-white">{{ user.name }} requests cancellation</p>
+                                <p class="text-xs text-zinc-400 mt-1">Confirmed Target: {{ slot.date }} | Timeframe: {{ slot.start_time|ampm }}{% if slot.end_time %} - {{ slot.end_time|ampm }}{% endif %}</p>
+                                <p class="text-[11px] text-emerald-400 font-mono mt-0.5">Credit Yield Return: +{{ slot.requested_duration|format_time }}</p>
+                            </div>
+                            <div class="w-full md:w-auto flex flex-col gap-2">
+                                <input type="text" id="ref_msg_{{ slot.id }}" placeholder="Reasoning..." class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1 text-[11px] text-white outline-none focus:border-indigo-500 placeholder-zinc-600">
+                                <div class="flex gap-2 justify-end">
+                                    <form action="/admin/decide-refund/{{ slot.id }}/approve" method="POST"
+                                          onsubmit="this.querySelector('[name=admin_message]').value = document.getElementById('ref_msg_{{ slot.id }}').value;">
+                                        <input type="hidden" name="admin_message">
+                                        <button type="submit" class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-1.5 rounded-lg cursor-pointer">Release Credits</button>
+                                    </form>
+                                    <form action="/admin/decide-refund/{{ slot.id }}/deny" method="POST"
+                                          onsubmit="this.querySelector('[name=admin_message]').value = document.getElementById('ref_msg_{{ slot.id }}').value;">
+                                        <input type="hidden" name="admin_message">
+                                        <button type="submit" class="bg-zinc-800 text-zinc-400 border border-zinc-700 text-xs font-bold px-4 py-1.5 rounded-lg cursor-pointer">Refuse</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-xs text-zinc-500 italic py-2">No cancellation rollback actions pending.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Profile Matrix Control List & Global Transmission Systems -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                <!-- User Node List -->
+                <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                    <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-3">:: PROFILE ROOT TREE</h2>
+                    <div class="divide-y divide-zinc-800 max-h-64 overflow-y-auto pr-1">
+                        {% for u in users %}
+                            <div class="py-3 flex justify-between items-center text-xs">
+                                <div>
+                                    <span class="font-bold text-zinc-200">{{ u.name }}</span>
+                                    {% if u.is_locked %}
+                                        <span class="ml-2 text-[10px] text-rose-400 border border-rose-800/60 bg-rose-950/40 px-1 rounded">LOCKED</span>
+                                    {% endif %}
+                                </div>
+                                <div class="flex gap-2">
+                                    {% if u.is_locked %}
+                                        <form action="/admin/unlock-user/{{ u.id }}" method="POST">
+                                            <button type="submit" class="text-[10px] bg-zinc-800 border border-zinc-700 hover:text-white px-2 py-1 rounded transition-colors cursor-pointer">Unlock</button>
+                                        </form>
+                                    {% endif %}
+                                    <!-- FIX: Use querySelector-based JS to avoid `this.field` shorthand which can fail -->
+                                    <button onclick="
+                                        var p = prompt('Input new access pin for {{ u.name }}:');
+                                        if (p && p.trim()) {
+                                            var f = document.createElement('form');
+                                            f.method = 'POST';
+                                            f.action = '/admin/change-password';
+                                            var i1 = document.createElement('input');
+                                            i1.name = 'user_id';
+                                            i1.value = '{{ u.id }}';
+                                            var i2 = document.createElement('input');
+                                            i2.name = 'new_password';
+                                            i2.value = p.trim();
+                                            f.appendChild(i1);
+                                            f.appendChild(i2);
+                                            document.body.appendChild(f);
+                                            f.submit();
+                                        }
+                                    " class="text-[10px] border border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-300 px-2 py-1 rounded transition-colors cursor-pointer">
+                                        Pin
+                                    </button>
+                                </div>
+                            </div>
+                        {% else %}
+                            <p class="text-xs text-zinc-500 italic py-3">No user profiles registered.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Messaging Terminal -->
+                <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                    <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-3">:: BROADCAST TRANSMISSION</h2>
+                    <form action="/admin/send-notification" method="POST" class="space-y-3">
+                        <div>
+                            <select name="target" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500">
+                                <option value="global">GLOBAL SYS-BROADCAST</option>
+                                {% for u in users %}
+                                    <option value="{{ u.id }}">TARGET: {{ u.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <textarea name="message" required placeholder="Write outbound terminal transmission logs here..." rows="3"
+                                  class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500 placeholder-zinc-600 resize-none"></textarea>
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 rounded-xl cursor-pointer transition-colors">
+                            Broadcast Packet
+                        </button>
+                    </form>
+                </div>
+
+            </div>
+
+            <!-- Complete System Queue Log -->
+            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+                <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">:: GLOBAL TIMELINE MASTER VIEW</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead>
+                            <tr class="border-b border-zinc-800 text-zinc-500 uppercase text-[10px]">
+                                <th class="pb-2">Date</th>
+                                <th class="pb-2">TimeFrame Bounds</th>
+                                <th class="pb-2">Type</th>
+                                <th class="pb-2">Status</th>
+                                <th class="pb-2">Owner</th>
+                                <th class="pb-2 text-right">Kill</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-900">
+                            {% for slot, user in all_slots %}
+                                <tr class="text-zinc-400">
+                                    <td class="py-3 text-zinc-200">{{ slot.date }}</td>
+                                    <td class="py-3">{{ slot.start_time|ampm }}{% if slot.end_time %} - {{ slot.end_time|ampm }}{% endif %}</td>
+                                    <td class="py-3 uppercase text-[10px]">{{ slot.slot_type }}</td>
+                                    <td class="py-3">
+                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold
+                                            {% if slot.status == 'available' %}bg-zinc-950 border border-zinc-800 text-zinc-500
+                                            {% elif slot.status == 'pending' %}bg-amber-950/40 text-amber-400 border border-amber-900
+                                            {% elif slot.status == 'refund_requested' %}bg-purple-950/40 text-purple-400 border border-purple-900
+                                            {% else %}bg-emerald-950/40 text-emerald-400 border border-emerald-900{% endif %}">
+                                            {{ slot.status }}
+                                        </span>
+                                    </td>
+                                    <td class="py-3 text-zinc-300">{{ user.name if user else "-" }}</td>
+                                    <td class="py-3 text-right">
+                                        <form action="/admin/delete-slot/{{ slot.id }}" method="POST"
+                                              onsubmit="return confirm('Purge slot permanently?');" class="inline">
+                                            <button type="submit" class="text-rose-500 hover:text-rose-400 text-xs cursor-pointer px-2">×</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+        <!-- ===== END CENTER+RIGHT COLUMNS ===== -->
+
+    </main>
+
+    <script>
+        function toggleFormInputs() {
+            var selector = document.getElementById('slot_type_select').value;
+            if (selector === 'specific') {
+                document.getElementById('specific_inputs').classList.remove('hidden');
+                document.getElementById('window_inputs').classList.add('hidden');
+            } else {
+                document.getElementById('specific_inputs').classList.add('hidden');
+                document.getElementById('window_inputs').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
