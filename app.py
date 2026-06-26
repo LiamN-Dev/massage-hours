@@ -5,9 +5,8 @@ from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-
-# --- FIX 4: Use Environment Variable for Secret Key with a Safe Fallback ---
-app.secret_key = os.environ.get('SECRET_KEY', 'massage_debt_secret_key_0831')
+# Secure secret key loaded via environment variables in production
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "massage_debt_secret_key_0831")
 
 DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///massages.db')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
@@ -22,8 +21,7 @@ db = SQLAlchemy(app)
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
-    # --- FIX 5: Increased length to 255 to fully support secure hashed passwords ---
-    password = db.Column(db.String(255), nullable=False) 
+    password = db.Column(db.String(255), nullable=False) # Increased size for hashes
     name = db.Column(db.String(50), nullable=False)
     role = db.Column(db.String(20), default='user')
     is_locked = db.Column(db.Boolean, default=False)  
@@ -58,17 +56,6 @@ class Receipt(db.Model):
     minutes_changed = db.Column(db.Integer, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-
-# --- FIX 2 & 3: Helper function to unconditionally guarantee GlobalPool exists ---
-def get_global_pool():
-    pool = GlobalPool.query.first()
-    if not pool:
-        pool = GlobalPool(balance_minutes=1800)
-        db.session.add(pool)
-        db.session.commit()
-    return pool
-
-
 # --- TIME COMPUTATION ENGINE ---
 
 def time_to_minutes(t_str):
@@ -77,8 +64,7 @@ def time_to_minutes(t_str):
     return h * 60 + m
 
 def minutes_to_time(mins):
-    # --- FIX 9: Handle midnight wrapping gracefully ---
-    mins = mins % (24 * 60) 
+    mins = mins % (24 * 60)
     h = mins // 60
     m = mins % 60
     return f"{h:02d}:{m:02d}"
@@ -102,9 +88,18 @@ def format_ampm(time_str):
     except ValueError:
         return time_str
 
-# --- FIX 14: Kept clear naming consistency for the registered filter ---
 app.jinja_env.filters['format_time'] = format_minutes
 app.jinja_env.filters['ampm'] = format_ampm
+
+# --- UTILITY HELPERS FOR POOL RESILIENCE ---
+
+def get_or_create_pool():
+    pool = GlobalPool.query.first()
+    if not pool:
+        pool = GlobalPool(balance_minutes=1800)
+        db.session.add(pool)
+        db.session.commit()
+    return pool
 
 # --- NAVIGATION ROUTING ---
 
@@ -120,22 +115,20 @@ def login():
         username = request.form['username'].strip().lower()
         password = request.form['password'].strip()
         
-        # --- FIX 4: Use Environment Variable for Admin Password with safe fallback ---
-        ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '08310831')
-        if username == 'admin' and password == ADMIN_PASSWORD:
+        # Admin credentials fallback to environment variables safely
+        env_admin_pass = os.environ.get("ADMIN_PASSWORD", "08310831")
+        if username == 'admin' and password == env_admin_pass:
             session['user_id'] = 0
             session['username'] = 'admin'
             session['role'] = 'admin'
             return redirect('/secret-portal-0831')
             
         user = User.query.filter_by(username=username).first()
-        if user:
-            # --- FIX 5: Secure fallback checking hashed password OR legacy plaintext ---
-            if check_password_hash(user.password, password) or user.password == password:
-                session['user_id'] = user.id
-                session['username'] = user.username
-                session['role'] = user.role
-                return redirect('/dashboard')
+        if user and check_password_hash(user.password, password):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            session['role'] = user.role
+            return redirect('/dashboard')
             
         flash('Invalid verification credentials.')
     return render_template('login.html')
@@ -153,13 +146,12 @@ def dashboard():
         return redirect('/login')
         
     user = User.query.get(session['user_id'])
-    
     if not user:
         session.clear()
         flash('Your session has expired. Please log in again.')
         return redirect('/login')
         
-    pool = get_global_pool()
+    pool = get_or_create_pool()
     
     available_slots = TimeSlot.query.filter_by(status='available').all()
     my_appointments = TimeSlot.query.filter_by(claimed_by=user.id).all()
@@ -168,7 +160,7 @@ def dashboard():
         (Notification.user_id == user.id) | (Notification.is_global == True)
     ).order_by(Notification.timestamp.desc()).all()
     
-    # --- FIX 8: Privacy Lock - Only show current user's receipts ---
+    # Filtered by current user ID to solve the global privacy leak bug
     receipts = Receipt.query.filter_by(user_id=user.id).order_by(Receipt.timestamp.desc()).all()
     all_approved = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'approved').all()
 
@@ -223,6 +215,7 @@ def book_slot(slot_id):
         window_start = time_to_minutes(slot.start_time)
         window_end = time_to_minutes(slot.end_time) if slot.end_time else window_start
         
+        # Absolute window tracking to avoid midnight wrap evaluation bugs
         if window_end <= window_start:
             window_end += (24 * 60)
             
@@ -261,7 +254,6 @@ def book_slot(slot_id):
     else:
         slot.requested_duration = slot.duration_minutes
         
-    # --- FIX 7: Explicit type cast to avoid session type comparison mismatches ---
     slot.claimed_by = int(session['user_id'])
     slot.status = 'pending'
     user.is_locked = True
@@ -277,7 +269,7 @@ def request_refund(slot_id):
         
     user = User.query.get(session['user_id'])
     slot = TimeSlot.query.get_or_404(slot_id)
-    # --- FIX 7: Explicit type cast to avoid session type comparison mismatches ---
+    # Explictly cast session keys to integer match type checks
     if slot.claimed_by == int(session['user_id']) and slot.status == 'approved':
         slot.status = 'refund_requested'
         user.is_locked = True
@@ -292,7 +284,7 @@ def admin_dashboard():
     if 'user_id' not in session or session['role'] != 'admin':
         abort(404)
         
-    pool = get_global_pool()
+    pool = get_or_create_pool()
     users = User.query.filter_by(role='user').all()
     pending_slots = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'pending').all()
     refund_requests = db.session.query(TimeSlot, User).join(User, TimeSlot.claimed_by == User.id).filter(TimeSlot.status == 'refund_requested').all()
@@ -334,13 +326,13 @@ def decide_slot(slot_id, action):
     
     if action == 'approve':
         slot.status = 'approved'
-        pool = get_global_pool()
-        if pool and slot.requested_duration:
+        pool = get_or_create_pool()
+        if slot.requested_duration:
             pool.balance_minutes -= slot.requested_duration
             receipt = Receipt(user_id=user.id, user_name=user.name, description=f"Confirmed Booking: {slot.date}", minutes_changed=-slot.requested_duration)
             db.session.add(receipt)
-        # --- FIX 6: Safely UNLOCK user on approval so they can perform future actions ---
-        if user: user.is_locked = False 
+        if user: 
+            user.is_locked = False # FIX: Unlock user upon active approval state
         notif = Notification(user_id=user.id, is_global=False, message=f"Your booking for {slot.date} has been APPROVED. {admin_message}")
         db.session.add(notif)
         flash('Booking validated successfully.')
@@ -366,8 +358,8 @@ def decide_refund(slot_id, action):
     user = User.query.get(slot.claimed_by)
     
     if action == 'approve':
-        pool = get_global_pool()
-        if pool and slot.requested_duration:
+        pool = get_or_create_pool()
+        if slot.requested_duration:
             pool.balance_minutes += slot.requested_duration
             receipt = Receipt(user_id=user.id, user_name=user.name, description=f"Cancellation Approved", minutes_changed=slot.requested_duration)
             db.session.add(receipt)
@@ -380,8 +372,7 @@ def decide_refund(slot_id, action):
         flash('Cancellation evaluated and balances restored.')
         
     elif action == 'deny':
-        # --- FIX 6: Unlock user even if a refund is denied so they aren't stuck ---
-        if user: user.is_locked = False 
+        if user: user.is_locked = False # Clear lock status upon evaluation completed
         slot.status = 'approved'
         notif = Notification(user_id=user.id, is_global=False, message=f"Cancellation request declined. {admin_message}")
         db.session.add(notif)
@@ -393,7 +384,7 @@ def decide_refund(slot_id, action):
 @app.route('/admin/update-balance', methods=['POST'])
 def update_balance():
     if 'user_id' not in session or session['role'] != 'admin': abort(403)
-    pool = get_global_pool()
+    pool = get_or_create_pool()
     mode = request.form.get('mode') 
     hours = int(request.form.get('hours') or 0)
     mins = int(request.form.get('minutes') or 0)
@@ -417,8 +408,8 @@ def create_user():
     if User.query.filter_by(username=username).first():
         flash('Error: Profile identifier already taken.')
         return redirect('/secret-portal-0831')
-    
-    # --- FIX 5: Generate secure password hash instead of storing plaintext ---
+        
+    # Use Werkzeug helper for structural hashing securely
     hashed_password = generate_password_hash(password)
     new_user = User(username=username, password=hashed_password, name=name, role='user', is_locked=False)
     db.session.add(new_user)
@@ -440,7 +431,6 @@ def change_password():
     new_password = request.form.get('new_password').strip()
     user = User.query.get(target_user_id)
     if user:
-        # --- FIX 5: Generate secure hash for updated passwords ---
         user.password = generate_password_hash(new_password)
         db.session.commit()
     return redirect('/secret-portal-0831')
@@ -466,16 +456,14 @@ def delete_slot(slot_id):
 @app.cli.command("init-db")
 def init_db():
     db.create_all()
-    get_global_pool()
-    db.session.commit()
+    get_or_create_pool()
+    print("Database tables initialized successfully.")
 
-# --- FIX 1 & 11: Top-level Context Execution ---
-# This ensures that whenever Gunicorn imports this file, the tables are built 
-# and initialized immediately on Render without needing explicit CLI steps!
+# Safe initialization phase for production entry points (Gunicorn context)
 with app.app_context():
     db.create_all()
-    get_global_pool()
+    get_or_create_pool()
 
 if __name__ == '__main__':
-    # Cleaned production execution (removed unsafe debug=True logic)
-    app.run()
+    # Local fallback execution thread block
+    app.run(debug=True)
