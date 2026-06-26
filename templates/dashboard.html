@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Family Lounge Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
         
@@ -129,7 +129,6 @@
                             <form action="/book-slot/{{ slot.id }}" method="POST" class="mt-auto pt-5 border-t border-zinc-200/60">
                                 {% if slot.slot_type == 'window' %}
                                     <div class="mb-4 space-y-3">
-                                        <!-- START TIME SELECTORS -->
                                         <div class="bg-white border border-zinc-200 rounded-xl p-3 shadow-sm">
                                             <label class="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">Book Start Time:</label>
                                             <div class="flex gap-1.5 items-center">
@@ -141,12 +140,11 @@
                                                     {% for m in range(0, 60, 5) %}<option value="{{ '%02d' % m }}">{{ '%02d' % m }}</option>{% endfor %}
                                                 </select>
                                                 <select name="start_ampm" class="w-full p-2 text-center bg-zinc-50 border border-zinc-200 text-xs font-semibold rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none cursor-pointer">
-                                                    <option value="PM">PM</option><option value="AM">AM</option>
+                                                    <option value="AM">AM</option><option value="PM">PM</option>
                                                 </select>
                                             </div>
                                         </div>
 
-                                        <!-- END TIME SELECTORS -->
                                         <div class="bg-white border border-zinc-200 rounded-xl p-3 shadow-sm">
                                             <label class="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">Book End Time:</label>
                                             <div class="flex gap-1.5 items-center">
@@ -158,7 +156,7 @@
                                                     {% for m in range(0, 60, 5) %}<option value="{{ '%02d' % m }}">{{ '%02d' % m }}</option>{% endfor %}
                                                 </select>
                                                 <select name="end_ampm" class="w-full p-2 text-center bg-zinc-50 border border-zinc-200 text-xs font-semibold rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none cursor-pointer">
-                                                    <option value="PM">PM</option><option value="AM">AM</option>
+                                                    <option value="AM">AM</option><option value="PM">PM</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -226,14 +224,6 @@
                 </h3>
                 <div class="overflow-x-auto rounded-xl border border-zinc-100">
                     <table class="w-full text-left text-sm whitespace-nowrap">
-                        <thead class="bg-zinc-50/80 border-b border-zinc-200/60">
-                            <tr class="text-zinc-400 text-[10px] uppercase tracking-widest">
-                                <th class="px-5 py-4 font-bold">Date</th>
-                                <th class="px-5 py-4 font-bold">Exact Window</th>
-                                <th class="px-5 py-4 font-bold">Length</th>
-                                <th class="px-5 py-4 font-bold text-right">Recipient</th>
-                            </tr>
-                        </thead>
                         <tbody class="divide-y divide-zinc-100">
                             {% for slot, recipient in all_approved %}
                                 <tr class="hover:bg-indigo-50/30 transition-colors duration-200 group">
