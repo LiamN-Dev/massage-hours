@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }</style>
+</head>
+<body class="bg-zinc-950 min-h-screen text-zinc-300 antialiased">
+
+    <nav class="bg-zinc-900/60 backdrop-blur border-b border-zinc-800 py-4 px-8 flex justify-between items-center sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="h-2 w-2 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/50"></div>
+            <h1 class="text-sm font-bold tracking-widest text-white uppercase">Admin Panel</h1>
+        </div>
+        <div class="flex items-center gap-6">
+            <span class="text-xs text-zinc-400">Balance: <span class="text-indigo-400 font-bold">{{ pool.balance_minutes|format_time }}</span></span>
+            <a href="/logout" class="text-xs text-zinc-500 hover:text-white border border-zinc-800 px-3 py-1.5 rounded-lg">Logout</a>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-6 space-y-6">
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="bg-indigo-950/50 border border-indigo-700 text-indigo-300 p-4 rounded-xl text-xs">
+                {{ messages[0] }}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- LEFT: Controls -->
+            <div class="space-y-6">
+
+                <!-- Update Balance -->
+                <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                    <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">Update Pool Balance</h2>
+                    <form action="/admin/update-balance" method="POST" class="space-y-3">
+                        <select name="mode" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                            <option value="add">Add to balance</option>
+                            <option value="subtract">Subtract from balance</option>
+                            <option value="set">Set balance to exact amount</option>
+                        </select>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] uppercase text-zinc-500 mb-1">Hours</label>
+                                <input type="number" name="hours" value="0" min="0" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] uppercase text-zinc-500 mb-1">Minutes</label>
+                                <input type="number" name="minutes" value="0" min="0" max="59" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold py-2.5 rounded-xl cursor-pointer">
+                            Update Balance
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Create Slot -->
+                <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                    <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">Create Time Slot</h2>
+                    <form action="/admin/create-slot" method="POST" class="space-y-3">
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1">Slot Type</label>
+                            <select id="slot_type_select" name="slot_type" onchange="toggleSlotInputs()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                                <option value="specific">Specific (fixed time)</option>
+                                <option value="window">Window (flexible range)</option>
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] uppercase text-zinc-500 mb-1">Date</label>
+                                <input type="date" name="date" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] uppercase text-zinc-500 mb-1">Start Time</label>
+                                <input type="time" name="start_time" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                            </div>
+                        </div>
+                        <div id="specific_inputs" class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] uppercase text-zinc-500 mb-1">Duration Hours</label>
+                                <input type="number" name="spec_hours" value="1" min="0" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] uppercase text-zinc-500 mb-1">Duration Minutes</label>
+                                <input type="number" name="spec_mins" value="0" min="0" max="59" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                            </div>
+                        </div>
+                        <div id="window_inputs" class="hidden">
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1">End Time</label>
+                            <input type="time" name="end_time" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 rounded-xl cursor-pointer">
+                            Create Slot
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Create User -->
+                <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                    <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">Create User</h2>
+                    <form action="/admin/create-user" method="POST" class="space-y-3">
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1">Full Name</label>
+                            <input type="text" name="name" required placeholder="Jane Doe" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1">Username</label>
+                            <input type="text" name="username" required placeholder="janedoe" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-zinc-500 mb-1">Password</label>
+                            <input type="password" name="password" required placeholder="••••••" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                        </div>
+                        <button type="submit" class="w-full bg-zinc-700 hover:bg-zinc-600 text-white text-xs font-bold py-2.5 rounded-xl cursor-pointer">
+                            Create User
+                        </button>
+                    </form>
+                </div>
+
+            </div>
+            <!-- END LEFT -->
+
+            <!-- RIGHT: Reviews + tables -->
+            <div class="lg:col-span-2 space-y-6">
+
+                <!-- Pending Approvals -->
+                <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+                    <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">Pending Booking Requests</h2>
+                    <div class="space-y-3 max-h-80 overflow-y-auto">
+                        {% for slot, user in pending_slots %}
+                        <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
+                            <div class="flex flex-col md:flex-row justify-between gap-4">
+                                <div>
+                                    <p class="text-sm font-bold text-white">{{ user.name }} <span class="text-zinc-500 font-normal text-xs">@{{ user.username }}</span></p>
+                                    <p class="text-xs text-zinc-400 mt-1">{{ slot.date }} &bull; {{ slot.start_time|ampm }}{% if slot.end_time %} – {{ slot.end_time|ampm }}{% endif %}</p>
+                                    <p class="text-xs text-zinc-500 mt-0.5">Duration: {{ slot.requested_duration|format_time }}</p>
+                                </div>
+                                <div class="flex flex-col gap-2 min-w-[200px]">
+                                    <input type="text" id="msg_{{ slot.id }}" placeholder="Optional note to user..." class="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none placeholder-zinc-600">
+                                    <div class="flex gap-2">
+                                        <form action="/admin/decide-slot/{{ slot.id }}/approve" method="POST" class="flex-1"
+                                              onsubmit="document.getElementById('approve_msg_{{ slot.id }}').value = document.getElementById('msg_{{ slot.id }}').value">
+                                            <input type="hidden" name="admin_message" id="approve_msg_{{ slot.id }}">
+                                            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer">Approve</button>
+                                        </form>
+                                        <form action="/admin/decide-slot/{{ slot.id }}/deny" method="POST" class="flex-1">
+                                            <button type="submit" class="w-full bg-zinc-800 border border-zinc-700 text-rose-400 text-xs font-bold px-3 py-2 rounded-lg cursor-pointer">Deny</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <p class="text-xs text-zinc-500 italic py-2">No pending requests.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Cancellation Requests -->
+                <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+                    <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">Cancellation Requests</h2>
+                    <div class="space-y-3 max-h-64 overflow-y-auto">
+                        {% for slot, user in refund_requests %}
+                        <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex flex-col md:flex-row justify-between gap-4">
+                            <div>
+                                <p class="text-sm font-bold text-white">{{ user.name }}</p>
+                                <p class="text-xs text-zinc-400 mt-1">{{ slot.date }} &bull; {{ slot.start_time|ampm }}{% if slot.end_time %} – {{ slot.end_time|ampm }}{% endif %}</p>
+                                <p class="text-xs text-emerald-400 mt-0.5">+{{ slot.requested_duration|format_time }} will be returned</p>
+                            </div>
+                            <div class="flex gap-2 items-start">
+                                <form action="/admin/decide-refund/{{ slot.id }}/approve" method="POST">
+                                    <button type="submit" class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer">Approve</button>
+                                </form>
+                                <form action="/admin/decide-refund/{{ slot.id }}/deny" method="POST">
+                                    <button type="submit" class="bg-zinc-800 border border-zinc-700 text-zinc-400 text-xs font-bold px-4 py-2 rounded-lg cursor-pointer">Deny</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% else %}
+                        <p class="text-xs text-zinc-500 italic py-2">No cancellation requests.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Users List -->
+                <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+                    <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">Users</h2>
+                    <div class="divide-y divide-zinc-800 max-h-64 overflow-y-auto">
+                        {% for u in users %}
+                        <div class="py-3 flex justify-between items-center">
+                            <div>
+                                <span class="text-sm text-white font-semibold">{{ u.name }}</span>
+                                <span class="text-xs text-zinc-500 ml-2">@{{ u.username }}</span>
+                                {% if u.is_locked %}<span class="ml-2 text-[10px] text-rose-400 border border-rose-800 bg-rose-950/40 px-1.5 py-0.5 rounded">LOCKED</span>{% endif %}
+                            </div>
+                            <div class="flex gap-2">
+                                {% if u.is_locked %}
+                                <form action="/admin/unlock-user/{{ u.id }}" method="POST">
+                                    <button type="submit" class="text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 px-3 py-1 rounded-lg cursor-pointer hover:text-white">Unlock</button>
+                                </form>
+                                {% endif %}
+                                <button onclick="changePin({{ u.id }}, '{{ u.name }}')" class="text-xs border border-zinc-800 text-zinc-500 px-3 py-1 rounded-lg cursor-pointer hover:text-white">
+                                    Change Password
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <p class="text-xs text-zinc-500 italic py-3">No users yet.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Send Notification -->
+                <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                    <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">Send Notification</h2>
+                    <form action="/admin/send-notification" method="POST" class="space-y-3">
+                        <select name="target" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                            <option value="global">Everyone (global)</option>
+                            {% for u in users %}
+                            <option value="{{ u.id }}">{{ u.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <textarea name="message" required placeholder="Message..." rows="3"
+                                  class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none placeholder-zinc-600 resize-none"></textarea>
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 rounded-xl cursor-pointer">
+                            Send
+                        </button>
+                    </form>
+                </div>
+
+                <!-- All Slots Table -->
+                <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+                    <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">All Time Slots</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs font-mono text-left">
+                            <thead>
+                                <tr class="border-b border-zinc-800 text-zinc-500 text-[10px] uppercase">
+                                    <th class="pb-2 pr-4">Date</th>
+                                    <th class="pb-2 pr-4">Time</th>
+                                    <th class="pb-2 pr-4">Type</th>
+                                    <th class="pb-2 pr-4">Status</th>
+                                    <th class="pb-2 pr-4">User</th>
+                                    <th class="pb-2 text-right">Delete</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-900">
+                                {% for slot, user in all_slots %}
+                                <tr class="text-zinc-400">
+                                    <td class="py-2.5 pr-4 text-zinc-200">{{ slot.date }}</td>
+                                    <td class="py-2.5 pr-4">{{ slot.start_time|ampm }}{% if slot.end_time %} – {{ slot.end_time|ampm }}{% endif %}</td>
+                                    <td class="py-2.5 pr-4 uppercase text-[10px]">{{ slot.slot_type }}</td>
+                                    <td class="py-2.5 pr-4">
+                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold
+                                            {% if slot.status == 'available' %}bg-zinc-800 text-zinc-400
+                                            {% elif slot.status == 'pending' %}bg-amber-950/60 text-amber-400 border border-amber-900
+                                            {% elif slot.status == 'refund_requested' %}bg-purple-950/60 text-purple-400 border border-purple-900
+                                            {% else %}bg-emerald-950/60 text-emerald-400 border border-emerald-900{% endif %}">
+                                            {{ slot.status }}
+                                        </span>
+                                    </td>
+                                    <td class="py-2.5 pr-4">{{ user.name if user else "—" }}</td>
+                                    <td class="py-2.5 text-right">
+                                        <form action="/admin/delete-slot/{{ slot.id }}" method="POST" class="inline"
+                                              onsubmit="return confirm('Delete this slot?')">
+                                            <button type="submit" class="text-rose-500 hover:text-rose-400 cursor-pointer px-2 text-base leading-none">×</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+            <!-- END RIGHT -->
+
+        </div>
+    </main>
+
+    <script>
+        function toggleSlotInputs() {
+            var type = document.getElementById('slot_type_select').value;
+            document.getElementById('specific_inputs').classList.toggle('hidden', type !== 'specific');
+            document.getElementById('window_inputs').classList.toggle('hidden', type !== 'window');
+        }
+
+        function changePin(userId, name) {
+            var p = prompt('New password for ' + name + ':');
+            if (p && p.trim()) {
+                var f = document.createElement('form');
+                f.method = 'POST';
+                f.action = '/admin/change-password';
+                var i1 = document.createElement('input');
+                i1.name = 'user_id';
+                i1.value = userId;
+                var i2 = document.createElement('input');
+                i2.name = 'new_password';
+                i2.value = p.trim();
+                f.appendChild(i1);
+                f.appendChild(i2);
+                document.body.appendChild(f);
+                f.submit();
+            }
+        }
+    </script>
+</body>
+</html>
