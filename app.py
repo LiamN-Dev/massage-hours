@@ -2,8 +2,8 @@ import os
 import logging
 from flask import Flask, render_template, request, redirect, session, flash, abort
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import select, text
-from datetime import datetime
+from sqlalchemy import select
+from datetime import datetime, date, timezone, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
 logging.basicConfig(level=logging.INFO)
@@ -12,24 +12,40 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "super_secret_key_change_me")
 
-# ── Database setup ─────────────────────────────────────────────────────────────
-# Render gives you DATABASE_URL automatically when a Postgres DB is linked.
-# We switch the driver to pg8000 which is pure-Python and works on ANY Python version.
+# ── Database ───────────────────────────────────────────────────────────────────
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///local.db")
-
 if "postgres" in DATABASE_URL:
-    # Render still emits the old "postgres://" scheme — fix it and force pg8000 driver
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+pg8000://", 1)
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+pg8000://", 1)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_pre_ping": True,
-    "pool_recycle": 300,
-}
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True, "pool_recycle": 300}
 
 db = SQLAlchemy(app)
+
+# ── Timezone ───────────────────────────────────────────────────────────────────
+# Set the TIMEZONE environment variable in Render to your local timezone.
+# Examples: America/New_York, America/Chicago, America/Denver, America/Los_Angeles
+# Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+TZ_NAME = os.environ.get("TIMEZONE", "America/Chicago")
+
+def now_local():
+    """Current time in the configured local timezone (timezone-aware)."""
+    try:
+        import zoneinfo
+        tz = zoneinfo.ZoneInfo(TZ_NAME)
+    except Exception:
+        tz = timezone(timedelta(hours=-6))  # fallback: CST
+    return datetime.now(tz)
+
+def now_local_naive():
+    """Current local time as a naive datetime (for DB storage)."""
+    return now_local().replace(tzinfo=None)
+
+def today_local():
+    """Today's date string YYYY-MM-DD in local time."""
+    return now_local().strftime("%Y-%m-%d")
 
 # ── Models ─────────────────────────────────────────────────────────────────────
 
@@ -51,9 +67,9 @@ class TimeSlot(db.Model):
     __tablename__ = "time_slots"
     id                 = db.Column(db.Integer, primary_key=True)
     slot_type          = db.Column(db.String(20), nullable=False)
-    date               = db.Column(db.String(20), nullable=False)
-    start_time         = db.Column(db.String(10), nullable=False)
-    end_time           = db.Column(db.String(10), nullable=True)
+    date               = db.Column(db.String(20), nullable=False)   # YYYY-MM-DD
+    start_time         = db.Column(db.String(10), nullable=False)   # HH:MM
+    end_time           = db.Column(db.String(10), nullable=True)    # HH:MM
     duration_minutes   = db.Column(db.Integer, nullable=True)
     status             = db.Column(db.String(20), default="available")
     claimed_by         = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -65,18 +81,18 @@ class Notification(db.Model):
     user_id   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     is_global = db.Column(db.Boolean, default=False)
     message   = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=now_local_naive)
 
 class Receipt(db.Model):
     __tablename__ = "receipts"
     id              = db.Column(db.Integer, primary_key=True)
-    user_id         = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)  # nullable for admin actions
+    user_id         = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     user_name       = db.Column(db.String(50), nullable=False)
     description     = db.Column(db.String(200), nullable=False)
     minutes_changed = db.Column(db.Integer, nullable=False)
-    timestamp       = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp       = db.Column(db.DateTime, default=now_local_naive)
 
-# ── Utility functions ──────────────────────────────────────────────────────────
+# ── Utilities ──────────────────────────────────────────────────────────────────
 
 def time_to_minutes(t):
     if not t:
@@ -96,10 +112,89 @@ def get_pool():
         db.session.commit()
     return pool
 
-def get_user_by_id(uid):
-    if not uid:
-        return None
-    return db.session.get(User, uid)
+def slot_has_passed(slot):
+    """Return True if the slot's date (and end time if present) is in the past."""
+    today = today_local()
+    if slot.date < today:
+        return True
+    if slot.date == today:
+        end = slot.end_time or slot.start_time
+        now_hhmm = now_local().strftime("%H:%M")
+        return end <= now_hhmm
+    return False
+
+def sweep_expired():
+    """
+    Run on every page load:
+    1. Delete available/pending slots whose date has passed.
+    2. For approved slots that have passed:
+       - Restore minutes to pool
+       - Unlock the user
+       - Send them a notification
+       - Delete the slot
+    """
+    try:
+        today = today_local()
+        now_hhmm = now_local().strftime("%H:%M")
+        pool = get_pool()
+        changed = False
+
+        all_slots = db.session.execute(select(TimeSlot)).scalars().all()
+        for slot in all_slots:
+            if not slot_has_passed(slot):
+                continue
+
+            if slot.status in ("available", "pending"):
+                # Just clean it up — pending slots: also unlock the user
+                if slot.status == "pending" and slot.claimed_by:
+                    user = db.session.get(User, slot.claimed_by)
+                    if user:
+                        # Only unlock if they have no other active bookings
+                        other_active = db.session.execute(
+                            select(TimeSlot).where(
+                                TimeSlot.claimed_by == user.id,
+                                TimeSlot.id != slot.id,
+                                TimeSlot.status.in_(["pending", "approved", "refund_requested"])
+                            )
+                        ).scalar_one_or_none()
+                        if not other_active:
+                            user.is_locked = False
+                db.session.delete(slot)
+                changed = True
+
+            elif slot.status == "approved":
+                user = db.session.get(User, slot.claimed_by) if slot.claimed_by else None
+                if slot.requested_duration:
+                    pool.balance_minutes += slot.requested_duration
+                    db.session.add(Receipt(
+                        user_id=user.id if user else None,
+                        user_name=user.name if user else "Unknown",
+                        description=f"Appointment completed: {slot.date}",
+                        minutes_changed=slot.requested_duration,
+                    ))
+                if user:
+                    # Only unlock if no other active appointments
+                    other_active = db.session.execute(
+                        select(TimeSlot).where(
+                            TimeSlot.claimed_by == user.id,
+                            TimeSlot.id != slot.id,
+                            TimeSlot.status.in_(["pending", "approved", "refund_requested"])
+                        )
+                    ).scalar_one_or_none()
+                    if not other_active:
+                        user.is_locked = False
+                    db.session.add(Notification(
+                        user_id=user.id,
+                        message=f"Your appointment on {slot.date} has passed. Time has been returned to the pool."
+                    ))
+                db.session.delete(slot)
+                changed = True
+
+        if changed:
+            db.session.commit()
+    except Exception as e:
+        logger.error(f"sweep_expired error: {e}")
+        db.session.rollback()
 
 # ── Jinja filters ──────────────────────────────────────────────────────────────
 
@@ -183,6 +278,8 @@ def dashboard():
     if not is_user():
         return redirect("/login")
 
+    sweep_expired()  # clean up on every dashboard load
+
     user = db.session.get(User, session["user_id"])
     if not user:
         session.clear()
@@ -225,7 +322,7 @@ def book_slot(slot_id):
         return redirect("/login")
 
     if user.is_locked:
-        flash("Account locked pending review.")
+        flash("Account locked — you have a pending or active appointment.")
         return redirect("/dashboard")
 
     slot = db.session.get(TimeSlot, slot_id)
@@ -277,9 +374,9 @@ def book_slot(slot_id):
 
     slot.claimed_by = user.id
     slot.status     = "pending"
-    user.is_locked  = True
+    user.is_locked  = True   # LOCK: appointment requested
     db.session.commit()
-    flash("Request submitted! Account locked until admin decision.")
+    flash("Request submitted! Your account is locked until admin reviews it.")
     return redirect("/dashboard")
 
 @app.route("/request-refund/<int:slot_id>", methods=["POST"])
@@ -295,9 +392,9 @@ def request_refund(slot_id):
     slot = db.session.get(TimeSlot, slot_id)
     if slot and slot.claimed_by == user.id and slot.status == "approved":
         slot.status    = "refund_requested"
-        user.is_locked = True
+        user.is_locked = True   # LOCK: cancellation request pending
         db.session.commit()
-        flash("Cancellation pending admin approval.")
+        flash("Cancellation request submitted — pending admin approval.")
     return redirect("/dashboard")
 
 # ── Admin panel ────────────────────────────────────────────────────────────────
@@ -306,6 +403,8 @@ def request_refund(slot_id):
 def admin_dashboard():
     if not is_admin():
         abort(404)
+
+    sweep_expired()  # also sweep on admin load
 
     pool  = get_pool()
     users = db.session.execute(select(User).where(User.role == "user")).scalars().all()
@@ -363,7 +462,8 @@ def decide_slot(slot_id, action):
         if slot.requested_duration:
             pool.balance_minutes -= slot.requested_duration
         if user:
-            user.is_locked = False
+            # LOCK stays ON — user has an active approved appointment
+            # Do NOT set user.is_locked = False here
             if slot.requested_duration:
                 db.session.add(Receipt(
                     user_id=user.id, user_name=user.name,
@@ -373,11 +473,12 @@ def decide_slot(slot_id, action):
             note = request.form.get("admin_message", "").strip()
             db.session.add(Notification(
                 user_id=user.id,
-                message=f"Your request for {slot.date} was APPROVED." + (f" {note}" if note else ""),
+                message=f"Your appointment on {slot.date} has been APPROVED." + (f" {note}" if note else ""),
             ))
 
     elif action == "deny":
         if user:
+            # UNLOCK: admin denied — no active appointment
             user.is_locked = False
             db.session.add(Notification(user_id=user.id,
                 message=f"Your request for {slot.date} was denied."))
@@ -404,6 +505,7 @@ def decide_refund(slot_id, action):
         if slot.requested_duration:
             pool.balance_minutes += slot.requested_duration
         if user:
+            # UNLOCK: refund accepted, no more active appointment
             user.is_locked = False
             if slot.requested_duration:
                 db.session.add(Receipt(
@@ -411,15 +513,17 @@ def decide_refund(slot_id, action):
                     description="Cancellation Approved",
                     minutes_changed=slot.requested_duration,
                 ))
-            db.session.add(Notification(user_id=user.id, message="Cancellation approved. Time restored."))
+            db.session.add(Notification(user_id=user.id, message="Cancellation approved. Time restored to pool."))
         slot.status             = "available"
         slot.claimed_by         = None
         slot.requested_duration = None
 
     elif action == "deny":
         if user:
-            user.is_locked = False
-            db.session.add(Notification(user_id=user.id, message="Cancellation request denied."))
+            # LOCK stays ON — appointment is still active (put back to approved)
+            # Do NOT unlock here — they still have the appointment
+            db.session.add(Notification(user_id=user.id,
+                message="Your cancellation request was denied. Your appointment remains active."))
         slot.status = "approved"
 
     db.session.commit()
@@ -465,12 +569,7 @@ def create_user():
         flash("Username already exists.")
         return redirect("/secret-portal-0831")
 
-    db.session.add(User(
-        username=username,
-        password=generate_password_hash(password),
-        name=name,
-        role="user",
-    ))
+    db.session.add(User(username=username, password=generate_password_hash(password), name=name, role="user"))
     db.session.commit()
     flash(f'User "{name}" created.')
     return redirect("/secret-portal-0831")
@@ -480,7 +579,7 @@ def unlock_user(user_id):
     require_admin()
     user = db.session.get(User, user_id)
     if user:
-        user.is_locked = False
+        user.is_locked = False   # UNLOCK: admin override
         db.session.commit()
         flash(f"{user.name} unlocked.")
     return redirect("/secret-portal-0831")
@@ -524,7 +623,7 @@ def delete_slot(slot_id):
         flash("Slot deleted.")
     return redirect("/secret-portal-0831")
 
-# ── Startup: create all tables on every boot ───────────────────────────────────
+# ── Startup ────────────────────────────────────────────────────────────────────
 with app.app_context():
     try:
         db.create_all()
