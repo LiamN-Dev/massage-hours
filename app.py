@@ -419,11 +419,19 @@ def admin_dashboard():
         select(TimeSlot, User).outerjoin(User, TimeSlot.claimed_by == User.id)
     ).all()
 
+    # All sent messages, newest first, joined with sender target name (None = global)
+    all_notifications = db.session.execute(
+        select(Notification, User)
+        .outerjoin(User, Notification.user_id == User.id)
+        .order_by(Notification.timestamp.desc())
+    ).all()
+
     return render_template("admin.html",
         pool=pool, users=users,
         pending_slots=pending_slots,
         refund_requests=refund_requests,
         all_slots=all_slots,
+        all_notifications=all_notifications,
     )
 
 @app.route("/admin/create-slot", methods=["POST"])
@@ -611,6 +619,40 @@ def send_notification():
             db.session.add(Notification(user_id=int(target), message=msg))
         db.session.commit()
         flash("Notification sent.")
+    return redirect("/secret-portal-0831")
+
+@app.route("/admin/delete-notification/<int:notif_id>", methods=["POST"])
+def delete_notification(notif_id):
+    require_admin()
+    notif = db.session.get(Notification, notif_id)
+    if notif:
+        db.session.delete(notif)
+        db.session.commit()
+        flash("Message removed.")
+    return redirect("/secret-portal-0831")
+
+@app.route("/admin/clear-notifications", methods=["POST"])
+def clear_notifications():
+    require_admin()
+    scope = request.form.get("scope", "all")  # "all" or a user_id as string
+
+    if scope == "all":
+        db.session.query(Notification).delete()
+        db.session.commit()
+        flash("All messages wiped for every user.")
+    else:
+        try:
+            uid = int(scope)
+        except ValueError:
+            flash("Invalid target.")
+            return redirect("/secret-portal-0831")
+        db.session.execute(
+            Notification.__table__.delete().where(Notification.user_id == uid)
+        )
+        db.session.commit()
+        user = db.session.get(User, uid)
+        flash(f"Messages cleared for {user.name if user else 'user'}.")
+
     return redirect("/secret-portal-0831")
 
 @app.route("/admin/delete-slot/<int:slot_id>", methods=["POST"])
