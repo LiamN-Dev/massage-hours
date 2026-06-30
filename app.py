@@ -126,10 +126,10 @@ def slot_has_passed(slot):
 def sweep_expired():
     """
     Run on every page load:
-    1. Delete available/pending slots whose date has passed.
+    1. Delete available/pending slots whose date has passed (unlock user if no other active items).
     2. For approved slots that have passed:
-       - Restore minutes to pool
-       - Unlock the user
+       - Time was already spent when approved — it stays spent. No refund here.
+       - Unlock the user (if no other active items)
        - Send them a notification
        - Delete the slot
     """
@@ -164,13 +164,16 @@ def sweep_expired():
 
             elif slot.status == "approved":
                 user = db.session.get(User, slot.claimed_by) if slot.claimed_by else None
+                # NOTE: Do NOT refund pool here. The time was already spent
+                # when the booking was approved. An appointment happening
+                # (or passing) does not return money — only an admin
+                # override or an approved cancellation does that.
                 if slot.requested_duration:
-                    pool.balance_minutes += slot.requested_duration
                     db.session.add(Receipt(
                         user_id=user.id if user else None,
                         user_name=user.name if user else "Unknown",
                         description=f"Appointment completed: {slot.date}",
-                        minutes_changed=slot.requested_duration,
+                        minutes_changed=0,
                     ))
                 if user:
                     # Only unlock if no other active appointments
@@ -185,7 +188,7 @@ def sweep_expired():
                         user.is_locked = False
                     db.session.add(Notification(
                         user_id=user.id,
-                        message=f"Your appointment on {slot.date} has passed. Time has been returned to the pool."
+                        message=f"Your appointment on {slot.date} has passed."
                     ))
                 db.session.delete(slot)
                 changed = True
