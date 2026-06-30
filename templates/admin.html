@@ -234,6 +234,61 @@
                     </form>
                 </div>
 
+                <!-- Manage Messages -->
+                <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-xs font-bold uppercase text-white tracking-widest">Manage Messages</h2>
+                        <span class="text-[10px] text-zinc-500">{{ all_notifications|length }} total</span>
+                    </div>
+
+                    <!-- Bulk clear controls -->
+                    <div class="flex flex-col sm:flex-row gap-2 mb-4">
+                        <form action="/admin/clear-notifications" method="POST" class="flex-1 flex gap-2">
+                            <select name="scope" class="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                                <option value="" disabled selected>Clear messages for...</option>
+                                {% for u in users %}
+                                <option value="{{ u.id }}">{{ u.name }} only</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white text-xs font-bold px-4 py-2 rounded-xl cursor-pointer whitespace-nowrap"
+                                    onclick="return confirm('Clear all messages for the selected user? This cannot be undone.')">
+                                Clear
+                            </button>
+                        </form>
+                        <form action="/admin/clear-notifications" method="POST">
+                            <input type="hidden" name="scope" value="all">
+                            <button type="submit" class="bg-rose-950/60 border border-rose-800 text-rose-400 hover:text-rose-300 text-xs font-bold px-4 py-2 rounded-xl cursor-pointer whitespace-nowrap"
+                                    onclick="return confirm('NUKE ALL messages for EVERY user? This cannot be undone.')">
+                                Nuke All Messages
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Per-message list -->
+                    <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                        {% for notif, target_user in all_notifications %}
+                        <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex justify-between items-start gap-3">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    {% if notif.is_global %}
+                                    <span class="text-[9px] uppercase font-bold text-indigo-400 bg-indigo-950/50 border border-indigo-800 px-1.5 py-0.5 rounded">Global</span>
+                                    {% else %}
+                                    <span class="text-[9px] uppercase font-bold text-zinc-400 bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 rounded">{{ target_user.name if target_user else "Unknown" }}</span>
+                                    {% endif %}
+                                    <span class="text-[10px] text-zinc-500">{{ notif.timestamp.strftime('%m/%d %I:%M %p') }}</span>
+                                </div>
+                                <p class="text-xs text-zinc-300 truncate" title="{{ notif.message }}">{{ notif.message }}</p>
+                            </div>
+                            <form action="/admin/delete-notification/{{ notif.id }}" method="POST" class="shrink-0">
+                                <button type="submit" class="text-rose-500 hover:text-rose-400 cursor-pointer text-base leading-none px-1" title="Delete this message">×</button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <p class="text-xs text-zinc-500 italic py-2">No messages sent yet.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
                 <!-- All Slots Table -->
                 <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
                     <h2 class="text-xs font-bold uppercase text-white tracking-widest mb-4">All Time Slots</h2>
